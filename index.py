@@ -2,6 +2,9 @@
 
 import requests
 import mutagen
+import os
+import re
+import sys
 
 def findShow(name):
 	print(name)
@@ -10,5 +13,16 @@ def main():
 	findShow("Seinfeld")
 	return
 
+def getCLIFlags():
+	return [sys.argv[1], sys.argv[2]]
+
+isFilm = False
+
 if __name__ == "__main__":
+	directory = getCLIFlags()
+	isFilm = bool(sys.argv[2])
+	dir_content = os.listdir(directory[0])
+	for folder in dir_content:
+		print(folder)
+	print(isFilm)
 	main()
