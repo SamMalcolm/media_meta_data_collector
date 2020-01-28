@@ -25,4 +25,8 @@ if __name__ == "__main__":
 	for folder in dir_content:
 		print(folder)
 	print(isFilm)
+	robbo_file = mutagen.File('robbo.mp3')
+	# robbo_file['title'] = 'Neil RObertson'
+	robbo_file.pprint()
+
 	main()
