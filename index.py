@@ -10,9 +10,11 @@ import os
 import re
 import sys
 import json
+import urllib.request
 
-def findShow():
-	url = "https://api.themoviedb.org/3/tv/1400/season/2/episode/12?api_key=11b3c70aaee7f6f3fffb5cd45714f229"
+def findShow(show_id, season, episode):
+	global api_key
+	url = "https://api.themoviedb.org/3/tv/"+ str(show_id) + "/season/"+str(season)+"/episode/"+str(episode)+"?api_key=" + api_key
 
 	payload = {}
 	headers= {}
@@ -21,14 +23,22 @@ def findShow():
 
 	return json.loads(response.text)
 
+def downloadAndSaveImage(path):
+	global season_artwork
+	global api_key
+	url = "http://image.tmdb.org/t/p/w500/" + path + "?api_key=" + api_key
+	urllib.request.urlretrieve(url, path[1:])
+	season_artwork = path[1:]
+
 def applyData(data, tagged_file):
+	global season_artwork
 	tagged_file = MP4(tagged_file)
 	if data['season_number']:
 		tagged_file['tvsn'] = int(data['season_number'])
 	if data['episode_number']:
 		tagged_file['tves'] = int(data['episode_number'])
-	if data['artwork']:
-		with open(data['artwork'], "rb") as f:
+	if season_artwork != "":
+		with open(season_artwork, "rb") as f:
 			tagged_file["covr"] = [
 				MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
 			]
@@ -41,54 +51,87 @@ def applyData(data, tagged_file):
 	
 	tagged_file.save()
 		
-	
-	
+def getSeasonArtwork(show_id, season):
+	global api_key
+	url = "https://api.themoviedb.org/3/tv/"+ str(show_id) + "/season/"+str(season)+"?api_key=" + api_key
 
+	payload = {}
+	headers= {}
+
+	response = requests.request("GET", url, headers=headers, data = payload)
+	j = json.loads(response.text)
+	downloadAndSaveImage(j['poster_path'])
+	return j
+	
+season_artwork = ""
 
 def main():
-	global dir_content
-	for folder in dir_content:
-		print(folder)
-	print(isFilm)
-	robbo_file = MP4('test_directory/itunes_test.mp4')
+	global directory
+	season_episode = re.compile('S[\d]{1,2}E[\d]{1,2}')
+	media_format = re.compile('\.(mov|MOV|mp4|MP4)$')
+	for item in os.listdir(directory):
+		if season_episode.search(item):
+			if media_format.search(item):
+				print(item)
+				season = re.compile('S[\d]{1,2}').search(item).group(0)
+				episode = re.compile('E[\d]{1,2}').search(item).group(0)
+				season = int(season[1:])
+				episode = int(episode[1:])
+				print(season)
+				print(episode)
+
+				s = getSeasonArtwork(1400, season)
+
+				data = findShow(1400, season, episode)
+				applyData(data, directory + item)
+	#print(season)
+	#print(episode)
+	#robbo_file = MP4('test_directory/itunes_test.mp4')
 	#robbo_file.add_tags()
 	#robbo_file.save()
-	print(robbo_file.tags)
+	#print(robbo_file.tags)
 	#robbo_file['tvsh'] = 'Sam Malcolm SHow'
 	#robbo_file['stik'] = [1
 
 	#robbo_file.save()
-	robbo_file.pprint()
-	show = findShow()
-	print(show)
+	#robbo_file.pprint()
+	#show = findShow()
+	#print(show)
 	return
 
+api_key = "" 
+directory = ""
+
 def getCLIFlags():
-	path_re = re.compile('[a-zA-Z0-9\.\/_-~ ]+')
-	tf_re = re.compile('(true|True|TRUE|false|False|FALSE)')
-	tf = ""
-	path = ""
-	if (tf_re.match(sys.argv[1])):
-		tf = bool(sys.argv[1])
-		if (path_re.match(sys.argv[2])):
-			path = sys.argv[2]
-	elif (tf_re.match(sys.argv[2])):
-		tf = bool(sys.argv[2])
-		if (path_re.match(sys.argv[1])):
-			path = sys.argv[1]
-	print(path)
-	print(tf)
-	if (path != ""):
-		if (tf != ""):
-			return [path, tf]
+	global api_key
+	global directory
+	api_key = sys.argv[1]
+	directory = sys.argv[2]
+	# path_re = re.compile('[a-zA-Z0-9\.\/_-~ ]+')
+	# tf_re = re.compile('(true|True|TRUE|false|False|FALSE)')
+	# tf = ""
+	# path = ""
+	# if (tf_re.match(sys.argv[1])):
+	# 	tf = bool(sys.argv[1])
+	# 	if (path_re.match(sys.argv[2])):
+	# 		path = sys.argv[2]
+	# elif (tf_re.match(sys.argv[2])):
+	# 	tf = bool(sys.argv[2])
+	# 	if (path_re.match(sys.argv[1])):
+	# 		path = sys.argv[1]
+	# print(path)
+	# print(tf)
+	# if (path != ""):
+	# 	if (tf != ""):
+	# 		return [path, tf]
 	
 
 isFilm = False
 
 if __name__ == "__main__":
-	flags = getCLIFlags()
-	isFilm = flags[1]
-	dir_content = os.listdir(flags[0])
+	getCLIFlags()
+	# isFilm = flags[1]
+	# dir_content = os.listdir(flags[0])
 	main()
 	
 
