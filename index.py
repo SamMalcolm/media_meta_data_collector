@@ -11,67 +11,93 @@ import re
 import sys
 import json
 import urllib.request
+from datetime import datetime, time, date
 
 def findShow(show_id, season, episode):
 	global api_key
 	url = "https://api.themoviedb.org/3/tv/"+ str(show_id) + "/season/"+str(season)+"/episode/"+str(episode)+"?api_key=" + api_key
-
-	payload = {}
-	headers= {}
-
-	response = requests.request("GET", url, headers=headers, data = payload)
-
+	response = requests.request("GET", url)
 	return json.loads(response.text)
 
 def downloadAndSaveImage(path):
 	global season_artwork
 	global api_key
+	print("GETTING IMAGE")
 	url = "http://image.tmdb.org/t/p/w500/" + path + "?api_key=" + api_key
+	print("URL: "+"http://image.tmdb.org/t/p/w500/" + path + "?api_key=" + api_key[:4])
 	urllib.request.urlretrieve(url, path[1:])
 	season_artwork = path[1:]
 
 def applyData(data, tagged_file):
-	global season_artwork
+	global season_artwork, season_data, show_data
+	print(data)
 	tagged_file = MP4(tagged_file)
-	if data['season_number']:
-		tagged_file['tvsn'] = int(data['season_number'])
-	if data['episode_number']:
-		tagged_file['tves'] = int(data['episode_number'])
+	tagged_file['stik'] = [10]
+	if 'season_number' in data:
+		tagged_file['tvsn'] = [data['season_number']]
+	if 'episode_number' in data:
+		tagged_file['tves'] = [data['episode_number']]
 	if season_artwork != "":
 		with open(season_artwork, "rb") as f:
 			tagged_file["covr"] = [
 				MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
 			]
-	if data['year']:
-		tagged_file['\xa9day'] = data['year']
-	if data['name']:
+	if 'air_date' in data:
+		tagged_file['\xa9day'] = data['air_date'][:4]
+	if 'name' in data:
 		tagged_file['\xa9nam'] = data['name']
-	if data['overview']:
+	if 'overview' in data:
 		tagged_file['desc'] = data['overview']
-	
+	if 'original_name' in show_data:
+		tagged_file['tvsh'] = show_data['original_name']
+		tagged_file['\xa9alb'] = show_data['original_name']
+		tagged_file['\xa9ART'] = show_data['original_name']
+		tagged_file['aART'] = show_data['original_name']
 	tagged_file.save()
 		
+season_data = {}
+show_data = {}
+
+def getShowData(show_id):
+	global api_key, show_data
+	url = "https://api.themoviedb.org/3/tv/"+ str(show_id) +"?api_key=" + api_key
+	response = requests.request("GET", url)
+	show_data = json.loads(response.text)
+	return show_data
+
 def getSeasonArtwork(show_id, season):
-	global api_key
+	print("GETTING IMAGE")
+	global api_key, directory, season_data
 	url = "https://api.themoviedb.org/3/tv/"+ str(show_id) + "/season/"+str(season)+"?api_key=" + api_key
-
-	payload = {}
-	headers= {}
-
-	response = requests.request("GET", url, headers=headers, data = payload)
+	response = requests.request("GET", url)
 	j = json.loads(response.text)
-	downloadAndSaveImage(j['poster_path'])
-	return j
+	season_data = j
+	if os.path.isfile(directory + j['poster_path']):
+		print("FOUND FILE NOT SAVING")
+		return j
+	else:
+		print("FILE NOT FOUND RETRIEVING IMAGE")
+		downloadAndSaveImage(j['poster_path'])
+		return j
 	
 season_artwork = ""
+selected_show_id = 2710
+
+def checkTags(filepath):
+	filetags = MP4(filepath)
+	filetags = filetags.tags
+	return filetags
 
 def main():
-	global directory
+	global directory, season_data
+	global selected_show_id
 	season_episode = re.compile('S[\d]{1,2}E[\d]{1,2}')
-	media_format = re.compile('\.(mov|MOV|mp4|MP4)$')
+	media_format = re.compile('\.(mov|MOV|mp4|MP4|m4v)$')
+	season_data_retrieved = False
+	show_data_retrieved = False
 	for item in os.listdir(directory):
-		if season_episode.search(item):
-			if media_format.search(item):
+		if media_format.search(item):
+			if season_episode.search(item):
 				print(item)
 				season = re.compile('S[\d]{1,2}').search(item).group(0)
 				episode = re.compile('E[\d]{1,2}').search(item).group(0)
@@ -79,24 +105,36 @@ def main():
 				episode = int(episode[1:])
 				print(season)
 				print(episode)
-
-				s = getSeasonArtwork(1400, season)
-
-				data = findShow(1400, season, episode)
+				if 'season_number' in season_data:
+					if (season_data['season_number'] != season):
+						season_data_retrieved = False
+				if (season_data_retrieved != True):
+					s = getSeasonArtwork(selected_show_id, season)
+					season_data_retrieved = True
+				if (show_data_retrieved != True):
+					sh = getShowData(selected_show_id)
+					show_data_retrieved = True
+				data = findShow(selected_show_id, season, episode)
 				applyData(data, directory + item)
-	#print(season)
-	#print(episode)
-	#robbo_file = MP4('test_directory/itunes_test.mp4')
-	#robbo_file.add_tags()
-	#robbo_file.save()
-	#print(robbo_file.tags)
-	#robbo_file['tvsh'] = 'Sam Malcolm SHow'
-	#robbo_file['stik'] = [1
-
-	#robbo_file.save()
-	#robbo_file.pprint()
-	#show = findShow()
-	#print(show)
+			else:
+				tags = checkTags(directory + item)
+				if 'tvsh' in tags:
+					
+					episode = tags['tves'][0]
+					season = tags['tvsn'][0]
+					print("EPISODE " + str(episode))
+					print("SEASON " + str(season))
+					if 'season_number' in season_data:
+						if (season_data['season_number'] != season):
+							season_data_retrieved = False
+					if (season_data_retrieved != True):
+						s = getSeasonArtwork(selected_show_id, season)
+						season_data_retrieved = True
+					if (show_data_retrieved != True):
+						sh = getShowData(selected_show_id)
+						show_data_retrieved = True
+					data = findShow(selected_show_id, season, episode)
+					applyData(data, directory + item)
 	return
 
 api_key = "" 
@@ -107,45 +145,11 @@ def getCLIFlags():
 	global directory
 	api_key = sys.argv[1]
 	directory = sys.argv[2]
-	# path_re = re.compile('[a-zA-Z0-9\.\/_-~ ]+')
-	# tf_re = re.compile('(true|True|TRUE|false|False|FALSE)')
-	# tf = ""
-	# path = ""
-	# if (tf_re.match(sys.argv[1])):
-	# 	tf = bool(sys.argv[1])
-	# 	if (path_re.match(sys.argv[2])):
-	# 		path = sys.argv[2]
-	# elif (tf_re.match(sys.argv[2])):
-	# 	tf = bool(sys.argv[2])
-	# 	if (path_re.match(sys.argv[1])):
-	# 		path = sys.argv[1]
-	# print(path)
-	# print(tf)
-	# if (path != ""):
-	# 	if (tf != ""):
-	# 		return [path, tf]
-	
 
 isFilm = False
 
 if __name__ == "__main__":
 	getCLIFlags()
-	# isFilm = flags[1]
-	# dir_content = os.listdir(flags[0])
 	main()
-	
-
-	#video = MP4("test.mp4")
-	# # example cover art
-	# video["\xa9nam"] = "Test1"
-	# video["\xa9ART"] = "Test2"
-	# video["\xa9alb"] = "Test3"
-
-	# with open("cover.jpg", "rb") as f:
-	# 	video["covr"] = [
-	# 		MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
-	# 	]
-
-	# video.save()
 
 
