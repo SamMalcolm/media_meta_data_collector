@@ -81,72 +81,109 @@ def getSeasonArtwork(show_id, season):
 		return j
 	
 season_artwork = ""
-selected_show_id = 2710
 
 def checkTags(filepath):
 	filetags = MP4(filepath)
 	filetags = filetags.tags
 	return filetags
 
+def getFilmData(id):
+	global api_key
+	url = "https://api.themoviedb.org/3/movie/"+ str(id) +"?api_key=" + api_key
+	response = requests.request("GET", url)
+	j = json.loads(response.text)
+	if os.path.isfile(j['poster_path']):
+		return j
+	else: 
+		downloadAndSaveImage(j['poster_path'])
+		return j 
+
+def processFilm(film_id, filepath):
+
+	filetags = checkTags(filepath)
+	tagged_file = MP4(filepath)
+	print(tagged_file.tags)
+	data = getFilmData(film_id)
+	tagged_file['stik']  = [9]
+	if 'overview' in data:
+		tagged_file['desc'] = data['overview']
+	if 'original_title' in data:
+		tagged_file['\xa9alb'] = data['original_title']
+		tagged_file['aART'] = data['original_title']
+		tagged_file['\xa9nam'] = data['original_title']
+	if 'poster_path' in data:
+		with open(data['poster_path'][1:], "rb") as f:
+			tagged_file["covr"] = [
+				MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
+			]
+	if 'release_date' in data:
+		tagged_file['\xa9day'] = data['release_date'][:4]
+
+	# tagged_file.save()
+	
+
 def main():
-	global directory, season_data
-	global selected_show_id
+	global directory, season_data, item_id
 	season_episode = re.compile('S[\d]{1,2}E[\d]{1,2}')
 	media_format = re.compile('\.(mov|MOV|mp4|MP4|m4v)$')
 	season_data_retrieved = False
 	show_data_retrieved = False
-	for item in os.listdir(directory):
-		if media_format.search(item):
-			if season_episode.search(item):
-				print(item)
-				season = re.compile('S[\d]{1,2}').search(item).group(0)
-				episode = re.compile('E[\d]{1,2}').search(item).group(0)
-				season = int(season[1:])
-				episode = int(episode[1:])
-				print(season)
-				print(episode)
-				if 'season_number' in season_data:
-					if (season_data['season_number'] != season):
-						season_data_retrieved = False
-				if (season_data_retrieved != True):
-					s = getSeasonArtwork(selected_show_id, season)
-					season_data_retrieved = True
-				if (show_data_retrieved != True):
-					sh = getShowData(selected_show_id)
-					show_data_retrieved = True
-				data = findShow(selected_show_id, season, episode)
-				applyData(data, directory + item)
-			else:
-				tags = checkTags(directory + item)
-				if 'tvsh' in tags:
-					
-					episode = tags['tves'][0]
-					season = tags['tvsn'][0]
-					print("EPISODE " + str(episode))
-					print("SEASON " + str(season))
+	if os.path.isdir(directory):
+		for item in os.listdir(directory):
+			if media_format.search(item):
+				if season_episode.search(item):
+					print(item)
+					season = re.compile('S[\d]{1,2}').search(item).group(0)
+					episode = re.compile('E[\d]{1,2}').search(item).group(0)
+					season = int(season[1:])
+					episode = int(episode[1:])
+					print(season)
+					print(episode)
 					if 'season_number' in season_data:
 						if (season_data['season_number'] != season):
 							season_data_retrieved = False
 					if (season_data_retrieved != True):
-						s = getSeasonArtwork(selected_show_id, season)
+						s = getSeasonArtwork(item_id, season)
 						season_data_retrieved = True
 					if (show_data_retrieved != True):
-						sh = getShowData(selected_show_id)
+						sh = getShowData(item_id)
 						show_data_retrieved = True
-					data = findShow(selected_show_id, season, episode)
+					data = findShow(item_id, season, episode)
 					applyData(data, directory + item)
+				else:
+					tags = checkTags(directory + item)
+					if 'tvsh' in tags:
+						
+						episode = tags['tves'][0]
+						season = tags['tvsn'][0]
+						print("EPISODE " + str(episode))
+						print("SEASON " + str(season))
+						if 'season_number' in season_data:
+							if (season_data['season_number'] != season):
+								season_data_retrieved = False
+						if (season_data_retrieved != True):
+							s = getSeasonArtwork(item_id, season)
+							season_data_retrieved = True
+						if (show_data_retrieved != True):
+							sh = getShowData(item_id)
+							show_data_retrieved = True
+						data = findShow(item_id, season, episode)
+						applyData(data, directory + item)
+	else:
+		processFilm(item_id, directory)
 	return
 
 api_key = "" 
 directory = ""
+item_id = 0
 
 def getCLIFlags():
 	global api_key
 	global directory
+	global item_id
 	api_key = sys.argv[1]
 	directory = sys.argv[2]
-
-isFilm = False
+	item_id = int(sys.argv[3])
 
 if __name__ == "__main__":
 	getCLIFlags()
