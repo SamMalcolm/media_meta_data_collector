@@ -20,6 +20,7 @@ import sys
 import json
 import urllib.request
 from datetime import datetime, time, date
+import cv2
 
 def findShow(show_id, season, episode):
 	global api_key
@@ -120,16 +121,8 @@ def getClassification(film_id):
 	j = json.loads(response.text)
 	classification = ""
 	for item in j['results']:
-		print(item)
 		if item['iso_3166_1'] == "US":
-			print("\n\n\n")
-			print("US ITEM\n\n\n")
-			print(item['release_dates'])
-			print(item['release_dates'][0])
-			print(item['release_dates'][0]['certification'])
-			print("\n\n\n")
 			classification = item['release_dates'][0]['certification']
-	print("CERTIFICATION: " + classification)
 	return classification
 
 def processFilm(film_id, filepath):
@@ -190,20 +183,29 @@ def processFilm(film_id, filepath):
 	xml_str += "</plist>"
 
 	tagged_file['----:com.apple.iTunes:iTunMOVI'] = str.encode(xml_str)
+	#hdvd
+	# 0 - nothing
+	# 1 - 720p
+	# 2 - 1080p
+	# 3 - 4K
+	
+	vid = cv2.VideoCapture(filepath)
+	height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
+	width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
+	print(width)
+
+	if width > 1919 and width < 3839:
+		tagged_file['hdvd'] = [2]
+	elif width <1919 and width > 719:
+		tagged_file['hdvd'] = [1]
+	elif width > 3839:
+		tagged_file['hdvd'] = [3]
+	else:
+		tagged_file['hdvd'] = [0]
+	
 	#GENERATE XML AND AS AS BITES TO ----:com.apple.iTunes:iTunMOVI TAG
 	rating = getClassification(film_id)
-	if rating == 'G':
-		tagged_file['mpaaRating'] = 'G1'
-	elif rating == 'PG':
-		tagged_file['mpaaRating'] = 'P2'
-	elif rating == 'PG-13':
-		tagged_file['mpaaRating'] = 'P3'
-	elif rating == 'R':
-		tagged_file['mpaaRating'] = 'R4'
-	elif rating == 'NC-17':
-		tagged_file['mpaaRating'] = 'N6'
-	else:
-		tagged_file['mpaaRating'] = 'N8'
+	tagged_file['----:com.apple.iTunes:iTunEXTC'] = str.encode("b'mpaa|" + rating + "|300|")
 
 	tagged_file.save()
 	
