@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>cast</key>
+		<array>
+			<dict>
+				<key>name</key>
+				<string>John Travolta</string>
+			</dict>
+			<dict>
+				<key>name</key>
+				<string>Samuel L. Jackson</string>
+			</dict>
+		</array>
+		<key>directors</key>
+		<array>
+			<dict>
+				<key>name</key>
+				<string>Quentin Tarantino D</string>
+			</dict>
+		</array>
+		<key>producers</key>
+		<array>
+			<dict>
+				<key>name</key>
+				<string>Danny Devito</string>
+			</dict>
+		</array>
+		<key>screenwriters</key>
+		<array>
+			<dict>
+				<key>name</key>
+				<string>Quentin Tarantino</string>
+			</dict>
+		</array>
+	</dict>
+</plist>

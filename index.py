@@ -4,6 +4,12 @@
 # For shows pass in show name and search for that show on TMDb then use that id to find informaiton about individual episodes
 # For both request the cover image at 500px wide save it and add it to the file then delete the image
 
+# HD TAG ADDED
+
+# The atom is named "hdvd", it's an 8 bit integer where:
+# 0 - SD
+# 1 - 720p
+# 2 - 1080p
 import requests
 from mutagen.mp4 import MP4, MP4Info, MP4Cover
 import os
@@ -118,6 +124,10 @@ def processFilm(film_id, filepath):
 			]
 	if 'release_date' in data:
 		tagged_file['\xa9day'] = data['release_date'][:4]
+
+	#GET CAST AND CREW
+
+	#GENERATE XML AND AS AS BITES TO ----:com.apple.iTunes:iTunMOVI TAG
 
 	# tagged_file.save()
 	
