@@ -10,6 +10,8 @@
 # 0 - SD
 # 1 - 720p
 # 2 - 1080p
+
+import xml.dom.minidom
 import requests
 from mutagen.mp4 import MP4, MP4Info, MP4Cover
 import os
@@ -104,6 +106,32 @@ def getFilmData(id):
 		downloadAndSaveImage(j['poster_path'])
 		return j 
 
+def getCastandCrew(film_id):
+	global api_key
+	url = "https://api.themoviedb.org/3/movie/"+ str(film_id) +"/credits?api_key=" + api_key
+	response = requests.request("GET", url)
+	j = json.loads(response.text)
+	return j
+
+def getClassification(film_id):
+	global api_key
+	url = "https://api.themoviedb.org/3/movie/"+ str(film_id) +"/release_dates?api_key=" + api_key
+	response = requests.request("GET", url)
+	j = json.loads(response.text)
+	classification = ""
+	for item in j['results']:
+		print(item)
+		if item['iso_3166_1'] == "US":
+			print("\n\n\n")
+			print("US ITEM\n\n\n")
+			print(item['release_dates'])
+			print(item['release_dates'][0])
+			print(item['release_dates'][0]['certification'])
+			print("\n\n\n")
+			classification = item['release_dates'][0]['certification']
+	print("CERTIFICATION: " + classification)
+	return classification
+
 def processFilm(film_id, filepath):
 
 	filetags = checkTags(filepath)
@@ -111,7 +139,14 @@ def processFilm(film_id, filepath):
 	print(tagged_file.tags)
 	data = getFilmData(film_id)
 	tagged_file['stik']  = [9]
+	genres = []
+	
+	if 'genres' in data:
+		for genre in data['genres']:
+			genres.append(genre['name'])
+		tagged_file['\xa9gen'] = genres
 	if 'overview' in data:
+		tagged_file['ldes'] = data['overview']
 		tagged_file['desc'] = data['overview']
 	if 'original_title' in data:
 		tagged_file['\xa9alb'] = data['original_title']
@@ -127,10 +162,67 @@ def processFilm(film_id, filepath):
 
 	#GET CAST AND CREW
 
-	#GENERATE XML AND AS AS BITES TO ----:com.apple.iTunes:iTunMOVI TAG
+	cast_crew_data = getCastandCrew(film_id)
+	cast = []
+	directors = []
+	screenwriters = []
+	producers = []
+	producer_re = re.compile("Producer$")
+	for cast_member in cast_crew_data['cast']:
+		cast.append(cast_member['name'])
 
-	# tagged_file.save()
+	for crew_members in cast_crew_data['crew']:
+		if crew_members['job'] == "Director":
+			directors.append(crew_members['name'])
+		if crew_members['department'] == "Writing":
+			screenwriters.append(crew_members['name'])
+		if producer_re.search(crew_members['job']):
+			producers.append(crew_members['name'])
 	
+	xml_str = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+	xml_str += "<plist version=\"1.0\">\n"
+	xml_str += "<dict>"
+	xml_str += generateXML(cast, "cast")
+	xml_str += generateXML(directors, "directors")
+	xml_str += generateXML(screenwriters, "screenwriters")
+	xml_str += generateXML(producers, "producers")
+	xml_str += "</dict>"
+	xml_str += "</plist>"
+
+	tagged_file['----:com.apple.iTunes:iTunMOVI'] = str.encode(xml_str)
+	#GENERATE XML AND AS AS BITES TO ----:com.apple.iTunes:iTunMOVI TAG
+	rating = getClassification(film_id)
+	if rating == 'G':
+		tagged_file['mpaaRating'] = 'G1'
+	elif rating == 'PG':
+		tagged_file['mpaaRating'] = 'P2'
+	elif rating == 'PG-13':
+		tagged_file['mpaaRating'] = 'P3'
+	elif rating == 'R':
+		tagged_file['mpaaRating'] = 'R4'
+	elif rating == 'NC-17':
+		tagged_file['mpaaRating'] = 'N6'
+	else:
+		tagged_file['mpaaRating'] = 'N8'
+
+	tagged_file.save()
+	
+def generateXML(crew_arr, crew_key):
+	string = ""
+	string += "<key>" + crew_key + "</key>\n"
+	string += "<array>\n"
+	crewcount = 0
+	crewmembers = []
+	for member in crew_arr:
+		crewcount += 1
+		if crewcount < 11 and member not in crewmembers:
+			crewmembers.append(member)
+			string += "<dict>\n"
+			string += "<key>name</key>\n"
+			string += "<string>" + member + "</string>\n"
+			string += "</dict>\n"
+	string += "</array>"
+	return string
 
 def main():
 	global directory, season_data, item_id
