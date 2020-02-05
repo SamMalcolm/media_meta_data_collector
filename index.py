@@ -37,10 +37,10 @@ def downloadAndSaveImage(path):
 	urllib.request.urlretrieve(url, path[1:])
 	season_artwork = path[1:]
 
-def applyData(data, tagged_file):
+def applyData(data, filepath, show_id):
 	global season_artwork, season_data, show_data
 	print(data)
-	tagged_file = MP4(tagged_file)
+	tagged_file = MP4(filepath)
 	tagged_file['stik'] = [10]
 	if 'season_number' in data:
 		tagged_file['tvsn'] = [data['season_number']]
@@ -62,7 +62,63 @@ def applyData(data, tagged_file):
 		tagged_file['\xa9alb'] = show_data['original_name']
 		tagged_file['\xa9ART'] = show_data['original_name']
 		tagged_file['aART'] = show_data['original_name']
+	vid = cv2.VideoCapture(filepath)
+	height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
+	width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
+	print(width)
+
+	if width > 1919 and width < 3839:
+		tagged_file['hdvd'] = [2]
+	elif width <1919 and width > 1279:
+		tagged_file['hdvd'] = [1]
+	elif width > 3839:
+		tagged_file['hdvd'] = [3]
+	else:
+		tagged_file['hdvd'] = [0]
+
+	cast_crew_data = getCastandCrew(show_id, "tv")
+	cast = []
+	directors = []
+	screenwriters = []
+	producers = []
+	producer_re = re.compile("Producer$")
+	for cast_member in cast_crew_data['cast']:
+		cast.append(cast_member['name'])
+
+	for crew_members in cast_crew_data['crew']:
+		if crew_members['job'] == "Director":
+			directors.append(crew_members['name'])
+		if crew_members['department'] == "Writing":
+			screenwriters.append(crew_members['name'])
+		if producer_re.search(crew_members['job']):
+			producers.append(crew_members['name'])
+	
+	xml_str = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+	xml_str += "<plist version=\"1.0\">\n"
+	xml_str += "<dict>"
+	xml_str += generateXML(cast, "cast")
+	xml_str += generateXML(directors, "directors")
+	xml_str += generateXML(screenwriters, "screenwriters")
+	xml_str += generateXML(producers, "producers")
+	xml_str += "</dict>"
+	xml_str += "</plist>"
+
+	tagged_file['----:com.apple.iTunes:iTunMOVI'] = str.encode(xml_str)
+
+	rating = getTVContentRating(show_id)
+	tagged_file['----:com.apple.iTunes:iTunEXTC'] = str.encode("b'mpaa|" + rating + "|300|")
+
+	genres = []
+	
+	if 'genres' in show_data:
+		for genre in show_data['genres']:
+			genres.append(genre['name'])
+		tagged_file['\xa9gen'] = genres
+
+
 	tagged_file.save()
+
+	
 		
 season_data = {}
 show_data = {}
@@ -73,6 +129,17 @@ def getShowData(show_id):
 	response = requests.request("GET", url)
 	show_data = json.loads(response.text)
 	return show_data
+
+def getTVContentRating(show_id):
+	global api_key
+	url = "https://api.themoviedb.org/3/tv/"+ str(show_id) +"/content_ratings?api_key=" + api_key
+	response = requests.request("GET", url)
+	j = json.loads(response.text)
+	rating = ""
+	for item in j['results']:
+		if item['iso_3166_1'] == "US":
+			rating = item['rating']
+	return rating
 
 def getSeasonArtwork(show_id, season):
 	print("GETTING IMAGE")
@@ -107,9 +174,9 @@ def getFilmData(id):
 		downloadAndSaveImage(j['poster_path'])
 		return j 
 
-def getCastandCrew(film_id):
+def getCastandCrew(film_id, media_kind):
 	global api_key
-	url = "https://api.themoviedb.org/3/movie/"+ str(film_id) +"/credits?api_key=" + api_key
+	url = "https://api.themoviedb.org/3/"+media_kind+"/"+ str(film_id) +"/credits?api_key=" + api_key
 	response = requests.request("GET", url)
 	j = json.loads(response.text)
 	return j
@@ -126,7 +193,6 @@ def getClassification(film_id):
 	return classification
 
 def processFilm(film_id, filepath):
-
 	filetags = checkTags(filepath)
 	tagged_file = MP4(filepath)
 	print(tagged_file.tags)
@@ -155,7 +221,7 @@ def processFilm(film_id, filepath):
 
 	#GET CAST AND CREW
 
-	cast_crew_data = getCastandCrew(film_id)
+	cast_crew_data = getCastandCrew(film_id, "movie")
 	cast = []
 	directors = []
 	screenwriters = []
@@ -196,7 +262,7 @@ def processFilm(film_id, filepath):
 
 	if width > 1919 and width < 3839:
 		tagged_file['hdvd'] = [2]
-	elif width <1919 and width > 719:
+	elif width <1919 and width > 1279:
 		tagged_file['hdvd'] = [1]
 	elif width > 3839:
 		tagged_file['hdvd'] = [3]
@@ -253,7 +319,7 @@ def main():
 						sh = getShowData(item_id)
 						show_data_retrieved = True
 					data = findShow(item_id, season, episode)
-					applyData(data, directory + item)
+					applyData(data, directory + item, item_id)
 				else:
 					tags = checkTags(directory + item)
 					if 'tvsh' in tags:
@@ -272,7 +338,7 @@ def main():
 							sh = getShowData(item_id)
 							show_data_retrieved = True
 						data = findShow(item_id, season, episode)
-						applyData(data, directory + item)
+						applyData(data, directory + item, item_id)
 	else:
 		processFilm(item_id, directory)
 	return
