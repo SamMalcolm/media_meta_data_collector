@@ -207,12 +207,12 @@ def processFilm(film_id, filepath):
 	if 'overview' in data:
 		tagged_file['ldes'] = data['overview']
 		tagged_file['desc'] = data['overview']
-    if 'title' in data:
-        tagged_file['\xa9alb'] = data['title']
+	if 'title' in data:
+		tagged_file['\xa9alb'] = data['title']
 		tagged_file['aART'] = data['title']
 		tagged_file['\xa9nam'] = data['title']
 	elif 'original_title' in data:
-        tagged_file['\xa9alb'] = data['original_title']
+		tagged_file['\xa9alb'] = data['original_title']
 		tagged_file['aART'] = data['original_title']
 		tagged_file['\xa9nam'] = data['original_title']
 	if 'poster_path' in data:
