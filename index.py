@@ -11,6 +11,8 @@
 # 1 - 720p
 # 2 - 1080p
 
+# ffmpeg -i input.mkv -c copy -c:s mov_text output.mp4
+
 import xml.dom.minidom
 import requests
 from mutagen.mp4 import MP4, MP4Info, MP4Cover
@@ -126,9 +128,9 @@ def applyData(data, filepath, show_id, filename):
 
     tagged_file.save()
 
-    Path(filepath).rename(
-        '/Volumes/Sam Malcolm/itunes_media_server/Automatically Add to TV.localized/' + filename)
-    #subprocess.call(['mv', filepath, '/Volumes/Sam\ Malcolm/itunes_media_server/Automatically\ Add\ to\ TV.localized'])
+    # Path(filepath).rename(
+        # '/Volumes/Sam Malcolm/itunes_media_server/Automatically Add to TV.localized/' + filename)
+    # subprocess.call(['mv', filepath, '/Volumes/Sam\ Malcolm/itunes_media_server/Automatically\ Add\ to\ TV.localized'])
 
 
 season_data = {}
@@ -331,13 +333,13 @@ show_data_retrieved = False
 
 def processTVShow(item, directory):
     global season_data, season_data_retrieved, show_data_retrieved
-    season_episode = re.compile('S[\d]{1,2}E[\d]{1,2}')
+    season_episode = re.compile('(S[\d]{1,2}E[\d]{1,2}|Series [\d]+, Episode [\d]+)')
     if season_episode.search(item):
         print(item)
-        season = re.compile('S[\d]{1,2}').search(item).group(0)
-        episode = re.compile('E[\d]{1,2}').search(item).group(0)
-        season = int(season[1:])
-        episode = int(episode[1:])
+        season = re.compile('(S|Series )[\d]{1,2}').search(item).group(0)
+        episode = re.compile('(E|Episode )[\d]{1,2}').search(item).group(0)
+        season = int(re.compile('[\d]+').search(season).group(0))
+        episode = int(re.compile('[\d]+').search(episode).group(0))
         print(season)
         print(episode)
         if 'season_number' in season_data:
@@ -381,7 +383,7 @@ def main():
                 processTVShow(item, directory + '/')
             else:
                 print("Invalid media format")
-                convertable_format = re.compile("\.(avi|AVI|mkv)$")
+                convertable_format = re.compile("\.(avi|AVI|mkv|MKV)$")
                 if convertable_format.search(item):
                     subprocess.call(
                         ['ffmpeg', '-i', directory + '/' + item, directory + '/' + item[:-4] + '.mp4'])
@@ -392,7 +394,20 @@ def main():
                 else:
                     print("Nothing we can do chief")
     else:
-        processFilm(item_id, directory)
+        if media_format.search(directory):
+            processFilm(item_id, directory)
+        else:
+            print("Invalid media format")
+            convertable_format = re.compile("\.(avi|AVI|mkv|MKV)$")
+            if convertable_format.search(directory):
+                subprocess.call(
+                    ['ffmpeg', '-i', directory, directory + '.mp4'])
+                if os.path.isfile(directory + '.mp4'):
+                    subprocess.call(['rm', directory])
+                    # print("COULD HAVE CALLED: " + 'rm' + ' ' + directory + '/' + item)
+                    processFilm(item_id, directory)
+            else:
+                print("Nothing we can do chief")
     return
 
 
