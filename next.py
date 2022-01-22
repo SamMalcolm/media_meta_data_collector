@@ -74,11 +74,12 @@ def getData():
 	url += "&api_key=" + api_key
 	response = requests.request("GET", url)
 	show_data = json.loads(response.text)
-	show_data = show_data.results[0]
+	print(show_data)
+	show_data = show_data["results"][0]
 
 	# GET DATA WITH ID NOW
 	if isTV == False:
-		url = "https://api.themoviedb.org/3/movie/" + str(show_data.id) + "?api_key=" + api_key
+		url = "https://api.themoviedb.org/3/movie/" + str(show_data["id"]) + "?api_key=" + api_key
 	else:
 		season = re.compile('(S|Series )[\d]{1,2}' ,re.I).search(filePath).group(0)
 		episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePath).group(0)
@@ -87,11 +88,9 @@ def getData():
 		url = "https://api.themoviedb.org/3/tv/" + str(show_data.id) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
 	response = requests.request("GET", url)
 	j = json.loads(response.text)
-	if os.path.isfile(j['poster_path']):
-		return {key: value for (key, value) in (show_data.items() + j.items())}
-	else:
+	if os.path.isfile(j['poster_path']) == False:
 		downloadAndSaveImage(j['poster_path'])
-		return {key: value for (key, value) in (show_data.items() + j.items())}
+	return {**show_data, **j}
 
 def subtitlesExistForItem(item):
 	print(item)
@@ -156,7 +155,8 @@ def applyData(filePath):
 	if 'episode_number' in data:
 		tagged_file['tves'] = [data['episode_number']]
 	if artwork != "":
-		with open(data['poster_path'], "rb") as f:
+		print(artwork)
+		with open(artwork, "rb") as f:
 			tagged_file["covr"] = [
 				MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
 			]
@@ -218,6 +218,11 @@ def applyData(filePath):
 	rating = getClassification(data['id'])
 	tagged_file['----:com.apple.iTunes:iTunEXTC'] = str.encode(
 		"b'mpaa|" + rating + "|300|")
+
+	if isTV:
+		tagged_file['stik'] = [10]
+	else:
+		tagged_file['stik'] = [9]
 	tagged_file.save()
 
 
@@ -233,15 +238,22 @@ def processFilePath(filePath):
 	# Determine if TV Show, if not done already
 	if isTV == False:
 		tvFilePattern = re.compile('(S[\d]{1,2}E[\d]{1,2}|Series [\d]+,? Episode [\d]+)' ,re.I)
-		if filePath.search(tvFilePattern):
+		if tvFilePattern.search(filePath):
 			isTV = True
 
 	info = PTN.parse(filePath)
-	info.title = re.sub(re.compile("[\d]{4,4}"), "", info.title.replace)
+
+	if 'title' in info:
+		info["title"] = re.sub(re.compile("[\d]{4,4}"), "", info['title'])
+		info["title"] = re.compile("\/.+$").search(info['title']).group(0)
 
 	# Determine content name if not done alread
-	if contentName != "":
-		contentName = info.title
+	print(contentName)
+	if contentName == "" and "title" in info:
+		contentName = info["title"]
+	elif contentName == "":
+		print('no name known or provided')
+		exit()
 
 	# Get Text Based meta data
 	data = getData()
@@ -252,8 +264,8 @@ def processFilePath(filePath):
 		subprocess.call(["unlink", artwork])
 
 	try:
-		subprocess.call(["cp", filePath, '/Volumes/Sam Malcolm/itunes_media_server/Automatically add to TV/'])
-		subprocess.call(["unlink", filePath])
+		subprocess.call(["cp", filePath, '/Volumes/Sam Malcolm/itunes_media_server/Automatically Add to TV.localized/'])
+		# subprocess.call(["unlink", filePath])
 	except:
 		print("Couldnt move file")
 
