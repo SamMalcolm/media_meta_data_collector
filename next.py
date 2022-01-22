@@ -74,7 +74,7 @@ def getData():
 	url += "&api_key=" + api_key
 	response = requests.request("GET", url)
 	show_data = json.loads(response.text)
-	print(show_data)
+	
 	show_data = show_data["results"][0]
 
 	# GET DATA WITH ID NOW
@@ -93,11 +93,11 @@ def getData():
 	return {**show_data, **j}
 
 def subtitlesExistForItem(item):
-	print(item)
+	print("Checking for Subs")
 	fileExtPattern = re.compile('\.[a-zA-Z0-9]+$')
-	print(fileExtPattern.findall(item)[0])
 	srtStr = item.replace(fileExtPattern.findall(item)[0], '.srt')
 	if os.path.exists(srtStr):
+		print("Subs Found")
 		return srtStr
 	else:
 		return False
@@ -155,7 +155,7 @@ def applyData(filePath):
 	if 'episode_number' in data:
 		tagged_file['tves'] = [data['episode_number']]
 	if artwork != "":
-		print(artwork)
+		
 		with open(artwork, "rb") as f:
 			tagged_file["covr"] = [
 				MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
@@ -230,7 +230,7 @@ def applyData(filePath):
 
 def processFilePath(filePath):
 	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork
-	print("Processing")
+	
 
 	# Determine if SRT exists and if file is the right format
 	filePath = conversion(filePath)

@@ -4,3 +4,4 @@ test_directory/*
 *.jpg
 runtime
 config.py
+__pycache__
