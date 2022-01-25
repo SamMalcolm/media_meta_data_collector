@@ -5,3 +5,4 @@ test_directory/*
 runtime
 config.py
 __pycache__
+test.html
