@@ -8,6 +8,7 @@ import cv2
 from pathlib import Path
 import PTN
 from config import api_key
+from moveAndDelete import moveAndDeleteMethod
 
 artwork = ''
 
@@ -109,14 +110,24 @@ def conversion(filePath):
 	media_format = re.compile('\.(mov|MOV|mp4|MP4|m4v)$')
 
 	subtitlesFound = subtitlesExistForItem(filePath)
+	
+
 	if subtitlesFound:
 		hasSubtitlesFileAvailable = True
+		
 
 	if media_format.search(filePath):
 		isNiceFormat = True
 
-	if isNiceFormat == False or hasSubtitlesFileAvailable:
+	if isNiceFormat and hasSubtitlesFileAvailable:
+		outputFilePath = filePath[:-4] + '-with-subs.mp4'
+	else:
 		outputFilePath = filePath[:-4] + '.mp4'
+
+	print("\n\nOUTPUT FILE\n\n")
+	print(outputFilePath)
+	if isNiceFormat == False or hasSubtitlesFileAvailable:
+		
 		process = []
 		process.append("ffmpeg")
 		process.append("-i")
@@ -124,7 +135,10 @@ def conversion(filePath):
 		if hasSubtitlesFileAvailable:
 			process.append('-i')
 			process.append(subtitlesFound)
-			process.append('-c:s mov_text')
+			process.append('-c:s')
+			process.append('mov_text')
+		process.append(outputFilePath)
+		
 		subprocess.call(process)
 		return outputFilePath
 	else:
@@ -229,8 +243,10 @@ def applyData(filePath):
 	
 
 def processFilePath(filePath):
-	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork
+	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork, moveAndDelete
 	
+	print("Move and delete?")
+	print(str(moveAndDelete))
 
 	# Determine if SRT exists and if file is the right format
 	filePath = conversion(filePath)
@@ -264,8 +280,9 @@ def processFilePath(filePath):
 		subprocess.call(["unlink", artwork])
 
 	try:
-		subprocess.call(["cp", filePath, '/Volumes/Sam Malcolm/itunes_media_server/Automatically Add to TV.localized/'])
-		# subprocess.call(["unlink", filePath])
+		if moveAndDelete:
+			print("moving and deleting")
+			moveAndDeleteMethod(filePath)
 	except:
 		print("Couldnt move file")
 
@@ -286,10 +303,11 @@ contentID = 0
 hasSubtitlesFileAvailable = False
 isNiceFormat = False
 data = {}
+moveAndDelete = False
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:t", ["input=", "id=", "name=", "isTV"])
+		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:th", ["input=", "id=", "name=", "isTV", "hard"])
 	except getopt.GetoptError:
 		print ('test.py -i <inputfile> -n <content_name>')
 		sys.exit(2)
@@ -302,4 +320,6 @@ if __name__ == "__main__":
 			contentID = arg
 		elif opt in ("--isTV", "-tv"):
 			isTV = True
+		elif opt in ("--hard", "-h"):
+			moveAndDelete = True
 	main(filePath)

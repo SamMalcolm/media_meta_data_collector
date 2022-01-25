@@ -1,0 +1,1 @@
+console.log(['ffmpeg', '-i', '/Users/sammalcolm/Downloads/cmon.cmon/cmon.cmon.mp4', '-i', '/Users/sammalcolm/Downloads/cmon.cmon/cmon.cmon.srt', '-c:s mov_text', '/Users/sammalcolm/Downloads/cmon.cmon/cmon.cmon-with-subs.mp4'].join(" "));
