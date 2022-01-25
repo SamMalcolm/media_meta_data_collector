@@ -26,5 +26,10 @@ Then using that ID run index.py over the directory (for a TV Show) or the file (
 A TV Show must already have season and episode number data tagged to the file, or contain a string in the file name that follows a specific format (eg. S01E01 for Season 1, Episode 1)
 
 ```bash
-python3 index.py {{API_KEY}} /path/to/directory_or_file {{TMDb_ID}}
+python3 next.py -i <input file or dirextory> -n <content name> 
 ```
+
+Optional flags
+
+-h will attempt to move and delete the file once done
+--isTV will tell the job that the content is TV, without this, it will try and figure that out on its own
