@@ -1,3 +1,6 @@
+# Needs to be able to force the use of a set ID
+# Needs refactoring, ie should only download the art for seasons of tv shows once not for every file
+
 import xml.dom.minidom
 import requests
 from mutagen.mp4 import MP4, MP4Info, MP4Cover
@@ -29,12 +32,17 @@ def getClassification(id):
 	else: 
 		url = "https://api.themoviedb.org/3/movie/" + \
 		str(id) + "/release_dates?api_key=" + api_key
+	print(url)
 	response = requests.request("GET", url)
 	j = json.loads(response.text)
 	classification = ""
-	for item in j['results']:
-		if item['iso_3166_1'] == "US":
-			classification = item['release_dates'][0]['certification']
+	if "results" in j:
+		for item in j['results']:
+			if item['iso_3166_1'] == "US" and "release_dates" in item:
+				classification = item['release_dates'][0]['certification']
+			elif "rating" in item: 
+				classification = item["rating"]
+			
 	return classification
 
 def generateXML(crew_arr, crew_key):
@@ -63,35 +71,56 @@ def downloadAndSaveImage(path):
 	urllib.request.urlretrieve(url, path[1:])
 	artwork = path[1:]
 
+show_id = ""
 
-def getData():
+def getData(filePath):
 	global contentName
 	global api_key
 	global isTV
+	global show_id
+	global contentID
+	global year
+	print("GETTING DATA FOR " + contentName)
 	if isTV:
 		url = "https://api.themoviedb.org/3/search/tv?query=" + contentName
 	else:
 		url = "https://api.themoviedb.org/3/search/movie?query=" + contentName
+	
+	if year:
+		url += "&year=" + year
 	url += "&api_key=" + api_key
+	print("Checking URL: " + url)
 	response = requests.request("GET", url)
 	show_data = json.loads(response.text)
-	
-	show_data = show_data["results"][0]
+	if len(show_data["results"]) > 0:
+		show_data = show_data["results"][0]
+		if isTV:
+			show_id = show_data["id"]
 
-	# GET DATA WITH ID NOW
-	if isTV == False:
-		url = "https://api.themoviedb.org/3/movie/" + str(show_data["id"]) + "?api_key=" + api_key
+		# GET DATA WITH ID NOW
+		if isTV == False:
+			url = "https://api.themoviedb.org/3/movie/" + str(show_data["id"]) + "?api_key=" + api_key
+		else:
+			season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePath).group(0)
+			episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePath).group(0)
+			season = int(re.compile('[\d]+').search(season).group(0))
+			episode = int(re.compile('[\d]+').search(episode).group(0))
+			url = "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
+		response = requests.request("GET", url)
+		j = json.loads(response.text)
+		print(j)
+		if isTV:
+			tvArtResponse = requests.request("GET", "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + "?api_key=" + api_key)
+			tvArt = json.loads(tvArtResponse.text)
+			if "poster_path" in tvArt and tvArt['poster_path']:
+				downloadAndSaveImage(tvArt['poster_path'])
+		if "poster_path" in j and j["poster_path"]:
+			
+			if os.path.isfile(j['poster_path']) == False:
+				downloadAndSaveImage(j['poster_path'])
+		return {**show_data, **j}
 	else:
-		season = re.compile('(S|Series )[\d]{1,2}' ,re.I).search(filePath).group(0)
-		episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePath).group(0)
-		season = int(re.compile('[\d]+').search(season).group(0))
-		episode = int(re.compile('[\d]+').search(episode).group(0))
-		url = "https://api.themoviedb.org/3/tv/" + str(show_data.id) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
-	response = requests.request("GET", url)
-	j = json.loads(response.text)
-	if os.path.isfile(j['poster_path']) == False:
-		downloadAndSaveImage(j['poster_path'])
-	return {**show_data, **j}
+		return False
 
 def subtitlesExistForItem(item):
 	print("Checking for Subs")
@@ -107,25 +136,27 @@ def subtitlesExistForItem(item):
 def conversion(filePath):
 	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat
 
-	media_format = re.compile('\.(mov|MOV|mp4|MP4|m4v)$')
+	media_format = re.compile('\.(mov|MOV|mp4|MP4)$', re.I)
 
 	subtitlesFound = subtitlesExistForItem(filePath)
 	
-
 	if subtitlesFound:
 		hasSubtitlesFileAvailable = True
 		
-
 	if media_format.search(filePath):
+		print("Looks like a nice format!")
 		isNiceFormat = True
 
 	if isNiceFormat and hasSubtitlesFileAvailable:
-		outputFilePath = filePath[:-4] + '-with-subs.mp4'
-	else:
+		outputFilePath = filePath[:-4] + '-with-subs.mp4'	
+	else: 
 		outputFilePath = filePath[:-4] + '.mp4'
 
 	print("\n\nOUTPUT FILE\n\n")
 	print(outputFilePath)
+
+	print("Nice Format? " + str(isNiceFormat))
+	print("Subs? " + str(hasSubtitlesFileAvailable))
 	if isNiceFormat == False or hasSubtitlesFileAvailable:
 		
 		process = []
@@ -137,15 +168,22 @@ def conversion(filePath):
 			process.append(subtitlesFound)
 			process.append('-c:s')
 			process.append('mov_text')
+		process.append("-codec:v")
+		process.append("libx264")
+		process.append("-codec:a")
+		process.append("copy")
 		process.append(outputFilePath)
 		
 		subprocess.call(process)
+		if moveAndDelete:
+			subprocess.call(["unlink", filePath])
 		return outputFilePath
 	else:
 		return filePath
 
 def applyData(filePath):
-	global data, artwork
+	global data, artwork, show_id
+	print("Instantiating: " + filePath)
 	tagged_file= MP4(filePath)
 	genres=[]
 	if 'genres' in data:
@@ -198,7 +236,7 @@ def applyData(filePath):
 		tagged_file['hdvd'] = [0]
 
 	if isTV:
-		cast_crew_data = getCastandCrew(data['id'], "tv")
+		cast_crew_data = getCastandCrew(show_id, "tv")
 	else:
 		cast_crew_data = getCastandCrew(data['id'], "movie")
 	cast = []
@@ -206,16 +244,19 @@ def applyData(filePath):
 	screenwriters = []
 	producers = []
 	producer_re = re.compile("Producer$")
-	for cast_member in cast_crew_data['cast']:
-		cast.append(cast_member['name'])
 
-	for crew_members in cast_crew_data['crew']:
-		if crew_members['job'] == "Director":
-			directors.append(crew_members['name'])
-		if crew_members['department'] == "Writing":
-			screenwriters.append(crew_members['name'])
-		if producer_re.search(crew_members['job']):
-			producers.append(crew_members['name'])
+	if "cast" in cast_crew_data:
+		for cast_member in cast_crew_data['cast']:
+			cast.append(cast_member['name'])
+
+	if "crew" in cast_crew_data:
+		for crew_members in cast_crew_data['crew']:
+			if crew_members['job'] == "Director":
+				directors.append(crew_members['name'])
+			if crew_members['department'] == "Writing":
+				screenwriters.append(crew_members['name'])
+			if producer_re.search(crew_members['job']):
+				producers.append(crew_members['name'])
 
 	xml_str = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
 	xml_str += "<plist version=\"1.0\">\n"
@@ -228,8 +269,11 @@ def applyData(filePath):
 	xml_str += "</plist>"
 
 	tagged_file['----:com.apple.iTunes:iTunMOVI'] = str.encode(xml_str)
-
-	rating = getClassification(data['id'])
+	print(data)
+	if isTV:
+		rating = getClassification(show_id)
+	else: 
+		rating = getClassification(data['id'])
 	tagged_file['----:com.apple.iTunes:iTunEXTC'] = str.encode(
 		"b'mpaa|" + rating + "|300|")
 
@@ -244,24 +288,33 @@ def applyData(filePath):
 
 def processFilePath(filePath):
 	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork, moveAndDelete
-	
-	print("Move and delete?")
-	print(str(moveAndDelete))
 
 	# Determine if SRT exists and if file is the right format
+	print("Checking if we need to convert: " + filePath)
 	filePath = conversion(filePath)
+	
 
 	# Determine if TV Show, if not done already
 	if isTV == False:
-		tvFilePattern = re.compile('(S[\d]{1,2}E[\d]{1,2}|Series [\d]+,? Episode [\d]+)' ,re.I)
+		tvFilePattern = re.compile('(S[\d]{1,2}E[\d]{1,2}|Series [\d]+,? Episode [\d]+|Season [\d]+ Episode [\d]+)' ,re.I)
 		if tvFilePattern.search(filePath):
 			isTV = True
 
-	info = PTN.parse(filePath)
+	fileName = re.compile("\/[\w\d\s.\[\]\-,'\(\)+]+$").search(filePath).group(0)
+	print(fileName)
+	info = PTN.parse(fileName)
 
-	if 'title' in info:
-		info["title"] = re.sub(re.compile("[\d]{4,4}"), "", info['title'])
-		info["title"] = re.compile("\/.+$").search(info['title']).group(0)
+	print(info)
+
+	if contentName == "":
+
+		if 'title' in info:
+			info["title"] = re.sub(re.compile("\[.+\] ?"), "", info['title'])
+			info["title"] = re.sub(re.compile("THEATRICAL"), "", info['title'])
+			info["title"] = re.sub(re.compile("[\d]{4,4}"), "", info['title'])
+			info["title"] = re.sub(re.compile("\..+$"), "", info['title'])
+			# if re.compile("\/.+$").search(info['title']).groups() > 0:
+			# 	info["title"] = re.compile("\/.+$").search(info['title']).group(0)[1:]
 
 	# Determine content name if not done alread
 	print(contentName)
@@ -272,8 +325,12 @@ def processFilePath(filePath):
 		exit()
 
 	# Get Text Based meta data
-	data = getData()
-	applyData(filePath)
+	data = getData(filePath)
+	if data:
+		applyData(filePath)
+	else:
+		print("Cant get data for this! :( ")
+		return
 
 	# Garbage collection
 	if artwork != "":
@@ -289,12 +346,32 @@ def processFilePath(filePath):
 
 
 def main(filePath):
+	global hasSubtitlesFileAvailable,isNiceFormat, data, contentName, contentNamePermenant, isTV, isTVPermenant
+	vidPattern = re.compile("\.(MPG|MP2|MPEG|MPE|MPV|OGG|MP4|M4P|MKV|M4V|AVI|WMV|MOV|QT|FLV|SWF)$", re.I)
+
+	hasSubtitlesFileAvailable = False
+	isNiceFormat = False
+	data = {}
+	if contentNamePermenant is False:
+		contentName = ""
+
+	if isTVPermenant is False:
+		isTV = False
+
 	# If item is file, process it, if its a directory, recursively call main() on its contents.
+	print("Checking " + filePath)
 	if (os.path.isdir(filePath) == False):
-		processFilePath(filePath)
+		if vidPattern.search(filePath):
+			processFilePath(filePath)
+		else:
+			print("Not a video file")
 	else:
+		print("Directory found, looping through items")
 		for item in os.listdir(filePath):
+			item = filePath + "/" + item
+			print(item)
 			main(item)
+			
 
 isTV = False
 contentName = ""
@@ -304,10 +381,12 @@ hasSubtitlesFileAvailable = False
 isNiceFormat = False
 data = {}
 moveAndDelete = False
-
+contentNamePermenant = False
+isTVPermenant = False
+year = False
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:th", ["input=", "id=", "name=", "isTV", "hard"])
+		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thy:", ["input=", "id=", "name=", "isTV", "hard", "year"])
 	except getopt.GetoptError:
 		print ('test.py -i <inputfile> -n <content_name>')
 		sys.exit(2)
@@ -315,11 +394,17 @@ if __name__ == "__main__":
 		if opt in ("-i", "--input"):
 			filePath = arg
 		elif opt in ("-n", "--name"):
+			contentNamePermenant = True
 			contentName = arg
 		elif opt in ("-d", "--id"):
 			contentID = arg
 		elif opt in ("--isTV", "-tv"):
+			isTVPermenant = True
 			isTV = True
 		elif opt in ("--hard", "-h"):
 			moveAndDelete = True
+		elif opt in ("--year", "-y"):
+			year = arg
 	main(filePath)
+
+# ffmpeg -i ~/Desktop/The\ Pants\ Tent.mp4  -c:v libx265 -crf 28 -c:a aac -b:a 128k -tag:v hvc1 output.mp4
