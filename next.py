@@ -134,7 +134,7 @@ def subtitlesExistForItem(item):
 
 
 def conversion(filePath):
-	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat
+	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, forceConversion
 
 	media_format = re.compile('\.(mov|MOV|mp4|MP4)$', re.I)
 
@@ -157,8 +157,8 @@ def conversion(filePath):
 
 	print("Nice Format? " + str(isNiceFormat))
 	print("Subs? " + str(hasSubtitlesFileAvailable))
-	if isNiceFormat == False or hasSubtitlesFileAvailable:
-		
+	if isNiceFormat == False or hasSubtitlesFileAvailable or forceConversion:
+		# ffmpeg -i ~/Desktop/The\ Pants\ Tent.mp4  -c:v libx265 -crf 28 -c:a aac -b:a 128k -tag:v hvc1 output.mp4
 		process = []
 		process.append("ffmpeg")
 		process.append("-i")
@@ -168,10 +168,16 @@ def conversion(filePath):
 			process.append(subtitlesFound)
 			process.append('-c:s')
 			process.append('mov_text')
-		process.append("-codec:v")
-		process.append("libx264")
-		process.append("-codec:a")
-		process.append("copy")
+		process.append("-c:v")
+		process.append("libx265")
+		process.append("-crf")
+		process.append("28")
+		process.append("-c:a")
+		process.append("aac")
+		process.append("-b:a")
+		process.append("128k")
+		process.append("-tag:v")
+		process.append("hvc1")
 		process.append(outputFilePath)
 		
 		subprocess.call(process)
@@ -287,10 +293,14 @@ def applyData(filePath):
 	
 
 def processFilePath(filePath):
-	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork, moveAndDelete
+	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork, moveAndDelete, forceConversion
 
 	# Determine if SRT exists and if file is the right format
 	print("Checking if we need to convert: " + filePath)
+	ogFilePath = filePath
+	ogTags = MP4(ogFilePath)
+	print("OG TAGS")
+	print(ogTags)
 	filePath = conversion(filePath)
 	
 
@@ -384,9 +394,10 @@ moveAndDelete = False
 contentNamePermenant = False
 isTVPermenant = False
 year = False
+forceConversion = False
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thy:", ["input=", "id=", "name=", "isTV", "hard", "year"])
+		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thy:", ["input=", "id=", "name=", "isTV", "hard", "year", "force"])
 	except getopt.GetoptError:
 		print ('test.py -i <inputfile> -n <content_name>')
 		sys.exit(2)
@@ -405,6 +416,8 @@ if __name__ == "__main__":
 			moveAndDelete = True
 		elif opt in ("--year", "-y"):
 			year = arg
+		elif opt in ("--force", "-f"):
+			forceConversion = True
 	main(filePath)
 
 # ffmpeg -i ~/Desktop/The\ Pants\ Tent.mp4  -c:v libx265 -crf 28 -c:a aac -b:a 128k -tag:v hvc1 output.mp4
