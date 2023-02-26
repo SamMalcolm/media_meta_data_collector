@@ -72,6 +72,8 @@ def downloadAndSaveImage(path):
 	artwork = path[1:]
 
 show_id = ""
+globalSzn = False
+globalEp = False
 
 def getData(filePath):
 	global contentName
@@ -80,6 +82,8 @@ def getData(filePath):
 	global show_id
 	global contentID
 	global year
+	global globalSzn
+	global globalEp
 	print("GETTING DATA FOR " + contentName)
 	if isTV:
 		url = "https://api.themoviedb.org/3/search/tv?query=" + contentName
@@ -101,11 +105,17 @@ def getData(filePath):
 		if isTV == False:
 			url = "https://api.themoviedb.org/3/movie/" + str(show_data["id"]) + "?api_key=" + api_key
 		else:
-			season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePath).group(0)
-			episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePath).group(0)
-			season = int(re.compile('[\d]+').search(season).group(0))
-			episode = int(re.compile('[\d]+').search(episode).group(0))
+			if globalSzn and globalEp:
+				season = globalSzn
+				episode = globalEp
+			else:
+				season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePath).group(0)
+				episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePath).group(0)
+				season = int(re.compile('[\d]+').search(season).group(0))
+				episode = int(re.compile('[\d]+').search(episode).group(0))
 			url = "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
+			globalSzn = False
+			globalEp = False
 		response = requests.request("GET", url)
 		j = json.loads(response.text)
 		print(j)
@@ -148,9 +158,9 @@ def conversion(filePath):
 		isNiceFormat = True
 
 	if isNiceFormat and hasSubtitlesFileAvailable:
-		outputFilePath = filePath[:-4] + '-with-subs.mp4'	
+		outputFilePath = filePath[:-4] + '-with-subs-mmdc.mp4'	
 	else: 
-		outputFilePath = filePath[:-4] + '.mp4'
+		outputFilePath = filePath[:-4] + '-mmdc.mp4'
 
 	print("\n\nOUTPUT FILE\n\n")
 	print(outputFilePath)
@@ -159,6 +169,7 @@ def conversion(filePath):
 	print("Subs? " + str(hasSubtitlesFileAvailable))
 	if isNiceFormat == False or hasSubtitlesFileAvailable or forceConversion:
 		# ffmpeg -i ~/Desktop/The\ Pants\ Tent.mp4  -c:v libx265 -crf 28 -c:a aac -b:a 128k -tag:v hvc1 output.mp4
+		# ffmpeg -i  -ss 00:01:00 -t 00:00:30 -c:v libx265 -tag:v hvc1 -preset medium -crf 22 -profile:v main10 -pix_fmt yuv420p10le -maxrate 40M -bufsize 80M -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart ~/Desktop/output_video-2.mp4
 		process = []
 		process.append("ffmpeg")
 		process.append("-i")
@@ -170,16 +181,35 @@ def conversion(filePath):
 			process.append('mov_text')
 		process.append("-c:v")
 		process.append("libx265")
+		process.append("-tag:v")
+		process.append("hvc1")
+		process.append("-preset")
+		process.append("medium")
 		process.append("-crf")
-		process.append("28")
+		process.append("22")
+		# // -profile:v main10 -pix_fmt yuv420p10le -maxrate 40M -bufsize 80M
+		process.append("-profile:v")
+		process.append("main10")
+		process.append("-pix_fmt")
+		process.append("yuv420p10le")
+		process.append("-maxrate")
+		process.append("40M")
+		process.append("-bufsize")
+		process.append("80M")
+		# -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart 
 		process.append("-c:a")
 		process.append("aac")
 		process.append("-b:a")
-		process.append("128k")
-		process.append("-tag:v")
-		process.append("hvc1")
+		process.append("160k")
+		process.append("-ar")
+		process.append("48000")
+		process.append("-movflags")
+		process.append("+faststart")
+
 		process.append(outputFilePath)
-		
+		print("Calling: ")
+		print(" ".join(process))
+		exit()
 		subprocess.call(process)
 		if moveAndDelete:
 			subprocess.call(["unlink", filePath])
@@ -293,7 +323,7 @@ def applyData(filePath):
 	
 
 def processFilePath(filePath):
-	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork, moveAndDelete, forceConversion
+	global isTV, contentName, isMovie, contentID,hasSubtitlesFileAvailable, isNiceFormat, data, artwork, moveAndDelete, forceConversion, globalSzn, globalEp
 
 	# Determine if SRT exists and if file is the right format
 	print("Checking if we need to convert: " + filePath)
@@ -302,7 +332,10 @@ def processFilePath(filePath):
 	print("OG TAGS")
 	print(ogTags)
 	filePath = conversion(filePath)
-	
+	if ogTags['stik'] == [10]:
+		isTV = True
+		globalSzn = ogTags['tvsn'][0]
+		globalEp = ogTags['tves'][0]
 
 	# Determine if TV Show, if not done already
 	if isTV == False:
@@ -397,7 +430,7 @@ year = False
 forceConversion = False
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thy:", ["input=", "id=", "name=", "isTV", "hard", "year", "force"])
+		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thyf:", ["input=", "id=", "name=", "isTV", "hard", "year", "force"])
 	except getopt.GetoptError:
 		print ('test.py -i <inputfile> -n <content_name>')
 		sys.exit(2)
