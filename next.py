@@ -199,7 +199,7 @@ def conversion(filePath):
 		# -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart 
 		# -af "pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR" -c:a:0 aac -b:a:0 160k -ar 48000 -c:a:1 ac3 -b:a:1 256k -map 0:v -map 0:a -movflags +faststart output.mp4
 		process.append("-af")
-		process.append("\"pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR\"")
+		process.append("'pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR'")
 		process.append("-c:a:0")
 		process.append("aac")
 		process.append("-b:a:0")
@@ -221,7 +221,6 @@ def conversion(filePath):
 		process.append(outputFilePath)
 		print("Calling: ")
 		print(" ".join(process))
-		exit()
 		subprocess.call(process)
 		if moveAndDelete:
 			subprocess.call(["unlink", filePath])
@@ -340,11 +339,14 @@ def processFilePath(filePath):
 	# Determine if SRT exists and if file is the right format
 	print("Checking if we need to convert: " + filePath)
 	ogFilePath = filePath
-	ogTags = MP4(ogFilePath)
+	if ogFilePath.endswith(".mp4"):
+		ogTags = MP4(ogFilePath)
+	else:
+		ogTags = False
 	print("OG TAGS")
 	print(ogTags)
 	filePath = conversion(filePath)
-	if ogTags['stik'] == [10]:
+	if ogTags and ogTags['stik'] == [10]:
 		isTV = True
 		globalSzn = ogTags['tvsn'][0]
 		globalEp = ogTags['tves'][0]
