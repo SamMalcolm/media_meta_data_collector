@@ -190,10 +190,7 @@ def conversion(filePath):
 		process = [
 			"ffmpeg", "-i", filePath]
 		if hasSubtitlesFileAvailable:
-			process.append('-i')
-			process.append(subtitlesFound)
-			process.append('-c:s')
-			process.append('mov_text')
+			process += ["-i", subtitlesFound, "-c:s", "mov_text"]
 		process += [
 			"-c:v", "libx265", "-tag:v", "hvc1", "-preset", "medium",
 			"-crf", "22", "-profile:v", "main10", "-pix_fmt", "yuv420p10le",
