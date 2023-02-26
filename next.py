@@ -195,7 +195,6 @@ def conversion(filePath):
 			"-c:v", "libx265", "-tag:v", "hvc1", "-preset", "medium",
 			"-crf", "22", "-profile:v", "main10", "-pix_fmt", "yuv420p10le",
 			"-maxrate", "40M", "-bufsize", "80M",
-			"-af", "pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR",
 			"-c:a:0", audio_codec, "-b:a:0", audio_bitrate, "-ar", "48000",
 			"-map", "0:v", "-map", "0:a",
 			"-movflags", "+faststart", outputFilePath
