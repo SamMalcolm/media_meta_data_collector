@@ -170,55 +170,92 @@ def conversion(filePath):
 	if isNiceFormat == False or hasSubtitlesFileAvailable or forceConversion:
 		# ffmpeg -i ~/Desktop/The\ Pants\ Tent.mp4  -c:v libx265 -crf 28 -c:a aac -b:a 128k -tag:v hvc1 output.mp4
 		# ffmpeg -i  -ss 00:01:00 -t 00:00:30 -c:v libx265 -tag:v hvc1 -preset medium -crf 22 -profile:v main10 -pix_fmt yuv420p10le -maxrate 40M -bufsize 80M -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart ~/Desktop/output_video-2.mp4
-		process = []
-		process.append("ffmpeg")
-		process.append("-i")
-		process.append(filePath)
+
+
+		audio_channels = subprocess.check_output([
+			"ffprobe", filePath,
+			"-loglevel", "error",
+			"-select_streams", "a:0",
+			"-show_entries", "stream=channels",
+			"-of", "default=nw=1:nk=1"
+		]).strip().decode()
+
+		if int(audio_channels) > 2:
+			audio_codec = "ac3"
+			audio_bitrate = "256k"
+		else:
+			audio_codec = "aac"
+			audio_bitrate = "160k"
+
+		process = [
+			"ffmpeg", "-i", filePath]
 		if hasSubtitlesFileAvailable:
 			process.append('-i')
 			process.append(subtitlesFound)
 			process.append('-c:s')
 			process.append('mov_text')
-		process.append("-c:v")
-		process.append("libx265")
-		process.append("-tag:v")
-		process.append("hvc1")
-		process.append("-preset")
-		process.append("medium")
-		process.append("-crf")
-		process.append("22")
-		# // -profile:v main10 -pix_fmt yuv420p10le -maxrate 40M -bufsize 80M
-		process.append("-profile:v")
-		process.append("main10")
-		process.append("-pix_fmt")
-		process.append("yuv420p10le")
-		process.append("-maxrate")
-		process.append("40M")
-		process.append("-bufsize")
-		process.append("80M")
-		# -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart 
-		# -af "pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR" -c:a:0 aac -b:a:0 160k -ar 48000 -c:a:1 ac3 -b:a:1 256k -map 0:v -map 0:a -movflags +faststart output.mp4
-		process.append("-af")
-		process.append("\"pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR\"")
-		process.append("-c:a:0")
-		process.append("aac")
-		process.append("-b:a:0")
-		process.append("160k")
-		process.append("-ar")
-		process.append("48000")
-		process.append("-c:a:1")
-		process.append("ac3")
-		process.append("-b:a:1")
-		process.append("256k")
-		process.append("-map")
-		process.append("0:v")
-		process.append("-map")
-		process.append("0:a")
+		process += [
+			"-c:v", "libx265", "-tag:v", "hvc1", "-preset", "medium",
+			"-crf", "22", "-profile:v", "main10", "-pix_fmt", "yuv420p10le",
+			"-maxrate", "40M", "-bufsize", "80M",
+			"-af", "pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR",
+			"-c:a:0", audio_codec, "-b:a:0", audio_bitrate, "-ar", "48000",
+			"-map", "0:v", "-map", "0:a",
+			"-movflags", "+faststart", outputFilePath
+		]
 
-		process.append("-movflags")
-		process.append("+faststart")
+		# process = []
+		# process.append("ffmpeg")
+		# process.append("-i")
+		# process.append(filePath)
+		# if hasSubtitlesFileAvailable:
+		# 	process.append('-i')
+		# 	process.append(subtitlesFound)
+		# 	process.append('-c:s')
+		# 	process.append('mov_text')
+		# process.append("-c:v")
+		# process.append("libx265")
+		# process.append("-tag:v")
+		# process.append("hvc1")
+		# process.append("-preset")
+		# process.append("medium")
+		# process.append("-crf")
+		# process.append("22")
+		# # // -profile:v main10 -pix_fmt yuv420p10le -maxrate 40M -bufsize 80M
+		# process.append("-profile:v")
+		# process.append("main10")
+		# process.append("-pix_fmt")
+		# process.append("yuv420p10le")
+		# process.append("-maxrate")
+		# process.append("40M")
+		# process.append("-bufsize")
+		# process.append("80M")
+		# # -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart 
+		# # -af "pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR" -c:a:0 aac -b:a:0 160k -ar 48000 -c:a:1 ac3 -b:a:1 256k -map 0:v -map 0:a -movflags +faststart output.mp4
 
-		process.append(outputFilePath)
+		# ffmpeg -i input.mkv -c:v libx265 -tag:v hvc1 -preset medium -crf 22 -profile:v main10 -pix_fmt yuv420p10le -maxrate 40M -bufsize 80M  $(if [ $(ffprobe -v error -select_streams a:0 -show_entries stream=channels -of default=noprint_wrappers=1:nokey=1 input.mkv) -gt 2 ]; then echo "-c:a:1 ac3 -b:a:1 256k";  fi) -map 0:v -map 0:a -movflags +faststart output.mp4
+
+		# process.append("-af")
+		# process.append("'pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR'")
+		# process.append("-c:a:0")
+		# process.append("aac")
+		# process.append("-b:a:0")
+		# process.append("160k")
+		# process.append("-ar")
+		# process.append("48000")
+		# process.append("-c:a:1")
+		# process.append("ac3")
+		# process.append("-b:a:1")
+		# process.append("256k")
+		# process.append("-map")
+		# process.append("0:v")
+		# process.append("-map")
+		# process.append("0:a")
+
+		# process.append("-movflags")
+		# process.append("+faststart")
+
+		# process.append(outputFilePath)
 		print("Calling: ")
 		print(" ".join(process))
 		exit()
