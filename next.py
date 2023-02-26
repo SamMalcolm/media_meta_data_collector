@@ -197,12 +197,24 @@ def conversion(filePath):
 		process.append("-bufsize")
 		process.append("80M")
 		# -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart 
-		process.append("-c:a")
+		# -af "pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR" -c:a:0 aac -b:a:0 160k -ar 48000 -c:a:1 ac3 -b:a:1 256k -map 0:v -map 0:a -movflags +faststart output.mp4
+		process.append("-af")
+		process.append("\"pan=stereo|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=BL|BR=BR\"")
+		process.append("-c:a:0")
 		process.append("aac")
-		process.append("-b:a")
+		process.append("-b:a:0")
 		process.append("160k")
 		process.append("-ar")
 		process.append("48000")
+		process.append("-c:a:1")
+		process.append("ac3")
+		process.append("-b:a:1")
+		process.append("256k")
+		process.append("-map")
+		process.append("0:v")
+		process.append("-map")
+		process.append("0:a")
+
 		process.append("-movflags")
 		process.append("+faststart")
 
