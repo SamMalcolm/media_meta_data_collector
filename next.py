@@ -196,7 +196,7 @@ def conversion(filePath):
 			"-crf", "22", "-profile:v", "main10", "-pix_fmt", "yuv420p10le",
 			"-maxrate", "40M", "-bufsize", "80M",
 			"-c:a:0", audio_codec, "-b:a:0", audio_bitrate, "-ar", "48000",
-			"-map", "0:v", "-map", "0:a",
+			"-map", "0:v:0", "-map", "0:a:0",
 			"-movflags", "+faststart", outputFilePath
 		]
 
