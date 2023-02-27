@@ -379,7 +379,7 @@ def processFilePath(filePath):
 	print("OG TAGS")
 	print(ogTags)
 	filePath = conversion(filePath)
-	if ogTags and ogTags['stik'] == [10]:
+	if ogTags and 'stik' in ogTags and ogTags['stik'] == [10]:
 		isTV = True
 		globalSzn = ogTags['tvsn'][0]
 		globalEp = ogTags['tves'][0]
