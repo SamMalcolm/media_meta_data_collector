@@ -390,7 +390,7 @@ def processFilePath(filePath):
 		if tvFilePattern.search(filePath):
 			isTV = True
 
-	fileName = re.compile("\/[\w\d\s.\[\]\-,'\(\)+]+$").search(filePath).group(0)
+	fileName = re.compile("\/[\w\d\s.\[\]\-,'\(\)!+]+$").search(filePath).group(0)
 	print(fileName)
 	info = PTN.parse(fileName)
 
