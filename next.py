@@ -3,6 +3,7 @@
 
 import xml.dom.minidom
 import requests
+import requests_cache
 from mutagen.mp4 import MP4, MP4Info, MP4Cover
 import sys, getopt, json, re, os, subprocess
 import urllib.request
@@ -13,8 +14,9 @@ import PTN
 from config import api_key
 from moveAndDelete import moveAndDeleteMethod
 import urllib.parse
-
+requests_cache.install_cache('cache')
 artwork = ''
+episode_artwork = ''
 
 def getCastandCrew(film_id, media_kind):
 	global api_key
@@ -76,6 +78,76 @@ show_id = ""
 globalSzn = False
 globalEp = False
 
+def getTMDBEpisodeStill(show_id, season, episode):
+	global episode_artwork
+	global api_key
+	url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{str(season)}/episode/{str(episode)}?api_key={api_key}"
+	r = requests.get(url)
+	try:
+		r.raise_for_status()
+	except:
+		return False
+	data = r.json()
+	if 'still_path' not in data or not data['still_path']:
+		return None
+	url = f"https://image.tmdb.org/t/p/original{data['still_path']}"
+	r = requests.get(url)
+	r.raise_for_status()
+	episode_artwork=r.content
+
+def getTMDBTVArtwork(tmdb_id, season_no, episode_no):
+	global api_key, artwork
+	tvArtResponse = requests.request("GET", "https://api.themoviedb.org/3/tv/" + str(tmdb_id) +'/season/' + str(season_no) + "?api_key=" + api_key)
+	tvArt = json.loads(tvArtResponse.text)
+	if "poster_path" in tvArt and tvArt['poster_path']:
+		artwork = tvArt['poster_path']
+	getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+	
+def getITUNESArtwork(url, width=1920, height=1080, format='jpg'):
+	url = url.format(w=width, h=height, f=format)
+	print(url)
+	r = requests.get(url)
+	r.raise_for_status()
+	return r.content
+
+def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
+	global artwork, episode_artwork
+	st = show_name[0].replace(" ", "%20")
+	url = f"https://uts-api.itunes.apple.com/uts/v2/search/incremental?sf=143441&locale=en-AU&caller=wta&utsk=35a0fc8b291d746%3A%3A%3A%3A%3A%3Af954d07ebc8a136&v=34&pfm=desktop&q={st}"
+
+	print("Getting: \n" + url)
+	r = requests.get(url)
+	r.raise_for_status()
+	data = r.json()
+	print(data)
+	print("\n\n")
+
+	if 'data' in data:
+		result = data
+		# print(result['data']['canvas']['shelves'])
+		if (re.compile(show_name, re.I).search(result['data']['canvas']['shelves'][0]['items'][0]['title'])):
+			show_id = result['data']['canvas']['shelves'][0]['items'][0]['id']
+			show_name = result['data']['canvas']['shelves'][0]['items'][0]['title']
+			url = f"https://uts-api.itunes.apple.com/uts/v2/show/{show_id}/itunesSeasons?sf=143441&locale=en-AU&caller=wta&utsk=def7345016abc82%3A%3A%3A%3A%3A%3Ad0e3fb52896c47a&v=34&pfm=desktop"
+			r = requests.get(url)
+			r.raise_for_status()
+			data = r.json()
+			print(data['data']['seasons'])
+			print(url)
+			if str(season_no) in data['data']['seasons']:
+				season = data['data']['seasons'][str(season_no)][0]
+			elif len(data['data']['seasons'][str(season_no - 1)]) > 1:
+				season = data['data']['seasons'][str(season_no - 1)][1]
+			else:
+				return False
+			artwork = season['images']['coverArt16X9']['url']
+			episode_artwork = getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+		else:
+			return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
+	else:
+		return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
+
+
 def getData(filePath):
 	global contentName
 	global api_key
@@ -94,9 +166,12 @@ def getData(filePath):
 	if year:
 		url += "&year=" + year
 	url += "&api_key=" + api_key
-	print("Checking URL: " + url)
+	print("Checking URL: \n" + url)
+	print("\n")
 	response = requests.request("GET", url)
 	show_data = json.loads(response.text)
+	print(show_data)
+	print("\n\n")
 	if len(show_data["results"]) > 0:
 		show_data = show_data["results"][0]
 		if isTV:
@@ -117,14 +192,16 @@ def getData(filePath):
 			url = "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
 			globalSzn = False
 			globalEp = False
+		print("Checking URL: \n" + url)
+		print("\n")
 		response = requests.request("GET", url)
 		j = json.loads(response.text)
 		print(j)
+		print("\n\n")
 		if isTV:
-			tvArtResponse = requests.request("GET", "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + "?api_key=" + api_key)
-			tvArt = json.loads(tvArtResponse.text)
-			if "poster_path" in tvArt and tvArt['poster_path']:
-				downloadAndSaveImage(tvArt['poster_path'])
+			# TV Art
+			getTVArtwork(show_data['title'], season, episode, show_data['id'])
+
 		if "poster_path" in j and j["poster_path"]:
 			
 			if os.path.isfile(j['poster_path']) == False:
@@ -263,7 +340,7 @@ def conversion(filePath):
 		return filePath
 
 def applyData(filePath):
-	global data, artwork, show_id
+	global data, artwork, show_id, episode_artwork
 	print("Instantiating: " + filePath)
 	tagged_file= MP4(filePath)
 	genres=[]
@@ -287,12 +364,19 @@ def applyData(filePath):
 		tagged_file['tvsn'] = [data['season_number']]
 	if 'episode_number' in data:
 		tagged_file['tves'] = [data['episode_number']]
+	covers = []
 	if artwork != "":
-		
-		with open(artwork, "rb") as f:
-			tagged_file["covr"] = [
-				MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG)
-			]
+		if ("tmdb.org" not in artwork):
+			art_file = getITUNESArtwork(artwork)
+		else:
+			art_file = downloadAndSaveImage(artwork)
+		with open(art_file, "rb") as f:
+			covers.append(MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG))
+	if episode_artwork != "":
+		art_file = downloadAndSaveImage(episode_artwork)
+		with open(art_file, "rb") as f:
+			covers.append(MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG))
+	tagged_file["covr"] = covers
 	if 'air_date' in data:
 		tagged_file['\xa9day'] = data['air_date'][:4]
 	if 'name' in data:

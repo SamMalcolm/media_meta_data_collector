@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import requests
 import requests_cache
 from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
@@ -29,8 +30,13 @@ def get_show_info(show_name):
 		return None
 	result = data
 	# print(result['data']['canvas']['shelves'])
-	show_id = result['data']['canvas']['shelves'][0]['items'][0]['id']
-	show_name = result['data']['canvas']['shelves'][0]['items'][0]['title']
+	if (re.compile(show_name, re.I).search(result['data']['canvas']['shelves'][0]['items'][0]['title'])):
+		show_id = result['data']['canvas']['shelves'][0]['items'][0]['id']
+		show_name = result['data']['canvas']['shelves'][0]['items'][0]['title']
+	else:
+		return (False, False)
+
+	
 	print("SHOW ID")
 	print(show_id)
 	print("SHOW NAME")
@@ -100,7 +106,7 @@ def process_file(path):
 		return
 
 	show_id, show_name = get_show_info(show_name)
-	if not show_id:
+	if not show_id or show_id is False:
 		return
 
 	season_artwork_url = get_season_artwork(show_id, season_number)
