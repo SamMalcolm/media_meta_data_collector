@@ -6,3 +6,4 @@ runtime
 config.py
 __pycache__
 test.html
+cache.sqlite
