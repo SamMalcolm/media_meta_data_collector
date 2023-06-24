@@ -12,6 +12,7 @@ from pathlib import Path
 import PTN
 from config import api_key
 from moveAndDelete import moveAndDeleteMethod
+import urllib.parse
 
 artwork = ''
 
@@ -86,9 +87,9 @@ def getData(filePath):
 	global globalEp
 	print("GETTING DATA FOR " + contentName)
 	if isTV:
-		url = "https://api.themoviedb.org/3/search/tv?query=" + contentName
+		url = "https://api.themoviedb.org/3/search/tv?query=" + urllib.parse.quote(contentName)
 	else:
-		url = "https://api.themoviedb.org/3/search/movie?query=" + contentName
+		url = "https://api.themoviedb.org/3/search/movie?query=" + urllib.parse.quote(contentName)
 	
 	if year:
 		url += "&year=" + year
@@ -390,7 +391,7 @@ def processFilePath(filePath):
 		if tvFilePattern.search(filePath):
 			isTV = True
 
-	fileName = re.compile("\/[\w\d\s.\[\]\-,'\(\)!+]+$").search(filePath).group(0)
+	fileName = re.compile("\/[\w\d\s.\[\]\-,'\(\)!+&%$#*^?|]+$").search(filePath).group(0)
 	print(fileName)
 	info = PTN.parse(fileName)
 
@@ -437,7 +438,7 @@ def processFilePath(filePath):
 
 def main(filePath):
 	global hasSubtitlesFileAvailable,isNiceFormat, data, contentName, contentNamePermenant, isTV, isTVPermenant
-	vidPattern = re.compile("\.(MPG|MP2|MPEG|MPE|MPV|OGG|MP4|M4P|MKV|M4V|AVI|WMV|MOV|QT|FLV|SWF)$", re.I)
+	vidPattern = re.compile("\.(MPG|MP2|MPEG|MPE|MPV|OGG|MP4|M4P|MKV|M4V|AVI|WMV|WEBM|MOV|QT|FLV|SWF)$", re.I)
 
 	hasSubtitlesFileAvailable = False
 	isNiceFormat = False
@@ -477,8 +478,9 @@ year = False
 forceConversion = False
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thyf:", ["input=", "id=", "name=", "isTV", "hard", "year", "force"])
+		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thyf", ["input=", "id=", "name=", "isTV", "hard", "year", "force"])
 	except getopt.GetoptError:
+		print(getopt.GetoptError.with_traceback())
 		print ('test.py -i <inputfile> -n <content_name>')
 		sys.exit(2)
 	for opt, arg in opts:
@@ -493,10 +495,12 @@ if __name__ == "__main__":
 			isTVPermenant = True
 			isTV = True
 		elif opt in ("--hard", "-h"):
+			print("HARD MODE")
 			moveAndDelete = True
 		elif opt in ("--year", "-y"):
 			year = arg
 		elif opt in ("--force", "-f"):
+			print("FORCE CONVERSION MODE")
 			forceConversion = True
 	main(filePath)
 

@@ -46,7 +46,15 @@ def get_season_artwork(show_id, season_number):
 	# print(data)
 	if 'data' not in data:
 		return None
-	season = data['data']['seasons'][str(season_number)][0]
+
+	print(data['data']['seasons'])
+	print(url)
+	if str(season_number) in data['data']['seasons']:
+		season = data['data']['seasons'][str(season_number)][0]
+	elif len(data['data']['seasons'][str(season_number - 1)]) > 1:
+		season = data['data']['seasons'][str(season_number - 1)][1]
+	else:
+		return False
 	artwork_url = season['images']['coverArt16X9']['url']
 	return artwork_url
 
@@ -60,7 +68,10 @@ def get_episode_artwork(show_name, season_number, episode_number):
 	show_id = data['results'][0]['id']
 	url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season_number[0]}/episode/{episode_number[0]}?api_key={api_key}"
 	r = requests.get(url)
-	r.raise_for_status()
+	try:
+		r.raise_for_status()
+	except:
+		return False
 	data = r.json()
 	if 'still_path' not in data or not data['still_path']:
 		return None
@@ -93,31 +104,29 @@ def process_file(path):
 		return
 
 	season_artwork_url = get_season_artwork(show_id, season_number)
-
-	# if not season_artwork_urls:
-	# 	return
-	artwork = get_artwork(season_artwork_url)
+	covers = []
+	if season_artwork_url:
+		artwork = get_artwork(season_artwork_url)
 
 		
-	season_artwork_path = f"season_{season_number[0]}_artwork.jpg"
-	with open(season_artwork_path, 'wb') as f:
-		f.write(artwork)
-	season_artwork_paths.append(season_artwork_path)
-
+		season_artwork_path = f"season_{season_number[0]}_artwork.jpg"
+		with open(season_artwork_path, 'wb') as f:
+			f.write(artwork)
+		season_artwork_paths.append(season_artwork_path)
+		covers.append(MP4Cover(artwork, imageformat=MP4Cover.FORMAT_JPEG))
+		
 	episode_artwork = get_episode_artwork(show_name, season_number, episode_number)
 
-	if not episode_artwork:
-		return
+	if episode_artwork:
 
-	episode_artwork_path = f"episode_{episode_number[0]}_artwork.jpg"
-	with open(episode_artwork_path, 'wb') as f:
-		f.write(episode_artwork)
+		episode_artwork_path = f"episode_{episode_number[0]}_artwork.jpg"
+		with open(episode_artwork_path, 'wb') as f:
+			f.write(episode_artwork)
+		covers.append(MP4Cover(episode_artwork, imageformat=MP4Cover.FORMAT_JPEG))
+	else:
+		episode_artwork_path = False
 
-	covers = [
-		MP4Cover(artwork, imageformat=MP4Cover.FORMAT_JPEG),
-		MP4Cover(episode_artwork, imageformat=MP4Cover.FORMAT_JPEG)
-		
-	]
+	
 
 	# Set the covers as the value of the covr atom
 	tags["covr"] = covers
@@ -127,10 +136,14 @@ def process_file(path):
 	tags["----:com.apple.iTunes:episode"]=str.encode(str(episode_number[0]))
 	tags.save()
 	print(season_artwork_paths)
-	for path in season_artwork_paths + [episode_artwork_path]:
+	for path in season_artwork_paths:
 		os.remove(path)
+		if  episode_artwork_path:
+			os.remove(episode_artwork_path)
 		
 def process_folder(folder):
+	print("Processing")
+	print(folder)
 	for name in os.listdir(folder):
 		path = os.path.join(folder, name)
 		if os.path.isdir(path):
