@@ -68,6 +68,7 @@ def generateXML(crew_arr, crew_key):
 def downloadAndSaveImage(path):
 	global artwork
 	global api_key
+	print(path)
 	url = "http://image.tmdb.org/t/p/w500/" + path + "?api_key=" + api_key
 	print("URL: "+"http://image.tmdb.org/t/p/w500/" +
 		path + "?api_key=" + api_key[:4])
@@ -80,6 +81,7 @@ globalEp = False
 
 def getTMDBEpisodeStill(show_id, season, episode):
 	global episode_artwork
+	global globalEp
 	global api_key
 	url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{str(season)}/episode/{str(episode)}?api_key={api_key}"
 	r = requests.get(url)
@@ -94,6 +96,10 @@ def getTMDBEpisodeStill(show_id, season, episode):
 	r = requests.get(url)
 	r.raise_for_status()
 	episode_artwork=r.content
+	episode_artwork_path = f"episode_{str(episode)}_artwork.jpg"
+	with open(episode_artwork_path, 'wb') as f:
+		f.write(r.content)
+		episode_artwork = episode_artwork_path
 
 def getTMDBTVArtwork(tmdb_id, season_no, episode_no):
 	global api_key, artwork
@@ -101,18 +107,24 @@ def getTMDBTVArtwork(tmdb_id, season_no, episode_no):
 	tvArt = json.loads(tvArtResponse.text)
 	if "poster_path" in tvArt and tvArt['poster_path']:
 		artwork = tvArt['poster_path']
+		downloadAndSaveImage(tvArt['poster_path'])
 	getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
 	
-def getITUNESArtwork(url, width=1920, height=1080, format='jpg'):
+def getITUNESArtwork(url,season, width=1920, height=1080, format='jpg', ):
+	global globalSzn
+	global artwork
 	url = url.format(w=width, h=height, f=format)
 	print(url)
 	r = requests.get(url)
 	r.raise_for_status()
-	return r.content
+	season_artwork_path = f"season_{str(season)}_artwork.jpg"
+	with open(season_artwork_path, 'wb') as f:
+		f.write(r.content)
+		artwork = season_artwork_path
 
 def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
 	global artwork, episode_artwork
-	st = show_name[0].replace(" ", "%20")
+	st = show_name.replace(" ", "%20")
 	url = f"https://uts-api.itunes.apple.com/uts/v2/search/incremental?sf=143441&locale=en-AU&caller=wta&utsk=35a0fc8b291d746%3A%3A%3A%3A%3A%3Af954d07ebc8a136&v=34&pfm=desktop&q={st}"
 
 	print("Getting: \n" + url)
@@ -141,7 +153,7 @@ def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
 			else:
 				return False
 			artwork = season['images']['coverArt16X9']['url']
-			episode_artwork = getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+			getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
 		else:
 			return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
 	else:
@@ -181,14 +193,21 @@ def getData(filePath):
 		if isTV == False:
 			url = "https://api.themoviedb.org/3/movie/" + str(show_data["id"]) + "?api_key=" + api_key
 		else:
+			print("FILEPATH:\n" + filePath + "\n\n")
+			filePathForSearch = re.compile('([^\/])+$').search(filePath).group(0)
+			season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePathForSearch).group(0)
+			episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePathForSearch).group(0)
+			season = int(re.compile('[\d]+').search(season).group(0))
+			episode = int(re.compile('[\d]+').search(episode).group(0))
 			if globalSzn and globalEp:
+				if globalSzn != season:
+					globalSzn = season
+				if globalEp != episode:
+					globalEp = episode
 				season = globalSzn
 				episode = globalEp
-			else:
-				season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePath).group(0)
-				episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePath).group(0)
-				season = int(re.compile('[\d]+').search(season).group(0))
-				episode = int(re.compile('[\d]+').search(episode).group(0))
+			print("Getting TV Data for Season: " + str(season))
+			print("episode: " + str(episode))
 			url = "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
 			globalSzn = False
 			globalEp = False
@@ -200,7 +219,7 @@ def getData(filePath):
 		print("\n\n")
 		if isTV:
 			# TV Art
-			getTVArtwork(show_data['title'], season, episode, show_data['id'])
+			getTVArtwork(show_data['original_name'], season, episode, show_id)
 
 		if "poster_path" in j and j["poster_path"]:
 			
@@ -366,15 +385,12 @@ def applyData(filePath):
 		tagged_file['tves'] = [data['episode_number']]
 	covers = []
 	if artwork != "":
-		if ("tmdb.org" not in artwork):
-			art_file = getITUNESArtwork(artwork)
-		else:
-			art_file = downloadAndSaveImage(artwork)
-		with open(art_file, "rb") as f:
+		if ("http" in artwork):
+			getITUNESArtwork(artwork, data['season_number'])
+		with open(artwork, "rb") as f:
 			covers.append(MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG))
 	if episode_artwork != "":
-		art_file = downloadAndSaveImage(episode_artwork)
-		with open(art_file, "rb") as f:
+		with open(episode_artwork, "rb") as f:
 			covers.append(MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG))
 	tagged_file["covr"] = covers
 	if 'air_date' in data:
@@ -475,7 +491,7 @@ def processFilePath(filePath):
 		if tvFilePattern.search(filePath):
 			isTV = True
 
-	fileName = re.compile("\/[\w\d\s.\[\]\-,'\(\)!+&%$#*^?|]+$").search(filePath).group(0)
+	fileName = re.compile("\/[ä\w\d\s.\[\]\-,'\(\)!+&%$#*^?|]+$").search(filePath).group(0)
 	print(fileName)
 	info = PTN.parse(fileName)
 
