@@ -1,6 +1,8 @@
 # Needs to be able to force the use of a set ID
 # Needs refactoring, ie should only download the art for seasons of tv shows once not for every file
 
+# NEW FRASIER ID: 195241
+
 import xml.dom.minidom
 import requests
 import requests_cache
@@ -171,9 +173,15 @@ def getData(filePath):
 	global globalEp
 	print("GETTING DATA FOR " + contentName)
 	if isTV:
-		url = "https://api.themoviedb.org/3/search/tv?query=" + urllib.parse.quote(contentName)
+		if contentID:
+			url = "https://api.themoviedb.org/3/search/tv/" + contentID
+		else:
+			url = "https://api.themoviedb.org/3/search/tv?query=" + urllib.parse.quote(contentName)
 	else:
-		url = "https://api.themoviedb.org/3/search/movie?query=" + urllib.parse.quote(contentName)
+		if contentID:
+			url = "https://api.themoviedb.org/3/search/movie/" + contentID
+		else:
+			url = "https://api.themoviedb.org/3/search/movie?query=" + urllib.parse.quote(contentName)
 	
 	if year:
 		url += "&year=" + year
@@ -571,7 +579,7 @@ def main(filePath):
 isTV = False
 contentName = ""
 isMovie = False
-contentID = 0
+contentID = False
 hasSubtitlesFileAvailable = False
 isNiceFormat = False
 data = {}
