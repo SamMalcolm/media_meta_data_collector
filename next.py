@@ -134,7 +134,7 @@ def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
 	print(data)
 	print("\n\n")
 
-	if 'data' in data:
+	if 'data' in data and 'canvas' in data['data'] and 'shelves' in data['data']['canvas'] and len(data['data']['canvas']['shelves']) > 0:
 		result = data
 		# print(result['data']['canvas']['shelves'])
 		if (re.compile(show_name, re.I).search(result['data']['canvas']['shelves'][0]['items'][0]['title'])):
@@ -148,7 +148,7 @@ def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
 			print(url)
 			if str(season_no) in data['data']['seasons']:
 				season = data['data']['seasons'][str(season_no)][0]
-			elif len(data['data']['seasons'][str(season_no - 1)]) > 1:
+			elif str(season_no - 1) in data['data']['seasons'] and len(data['data']['seasons'][str(season_no - 1)]) > 1:
 				season = data['data']['seasons'][str(season_no - 1)][1]
 			else:
 				return False
@@ -359,8 +359,9 @@ def conversion(filePath):
 		return filePath
 
 def applyData(filePath):
-	global data, artwork, show_id, episode_artwork
+	global data, artwork, show_id, episode_artwork, globalSzn
 	print("Instantiating: " + filePath)
+	print(data)
 	tagged_file= MP4(filePath)
 	genres=[]
 	if 'genres' in data:
@@ -386,7 +387,10 @@ def applyData(filePath):
 	covers = []
 	if artwork != "":
 		if ("http" in artwork):
-			getITUNESArtwork(artwork, data['season_number'])
+			if 'season_number' in data:
+				getITUNESArtwork(artwork, data['season_number'])
+			else:
+				getITUNESArtwork(artwork, globalSzn)
 		with open(artwork, "rb") as f:
 			covers.append(MP4Cover(f.read(), imageformat=MP4Cover.FORMAT_JPEG))
 	if episode_artwork != "":
