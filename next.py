@@ -148,21 +148,26 @@ def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
 			data = r.json()
 			print(data['data']['seasons'])
 			print(url)
-			if str(season_no) in data['data']['seasons']:
-				season = data['data']['seasons'][str(season_no)][0]
-			elif str(season_no - 1) in data['data']['seasons'] and len(data['data']['seasons'][str(season_no - 1)]) > 1:
-				season = data['data']['seasons'][str(season_no - 1)][1]
-			else:
-				return False
-			artwork = season['images']['coverArt16X9']['url']
-			getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+			try:
+				if str(season_no) in data['data']['seasons']:
+					season = data['data']['seasons'][str(season_no)][0]
+					artwork = season['images']['coverArt16X9']['url']
+				elif str(season_no - 1) in data['data']['seasons'] and len(data['data']['seasons'][str(season_no - 1)]) > 1:
+					season = data['data']['seasons'][str(season_no - 1)][1]
+					artwork = season['images']['coverArt16X9']['url']
+				else:
+					getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+			except:
+				getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+			
+			
 		else:
 			return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
 	else:
 		return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
 
 
-def getData(filePath):
+def getData(filePath, ogTags):
 	global contentName
 	global api_key
 	global isTV
@@ -174,12 +179,12 @@ def getData(filePath):
 	print("GETTING DATA FOR " + contentName)
 	if isTV:
 		if contentID:
-			url = "https://api.themoviedb.org/3/search/tv/" + contentID
+			url = "https://api.themoviedb.org/3/tv/" + contentID + '?language=en-US'
 		else:
 			url = "https://api.themoviedb.org/3/search/tv?query=" + urllib.parse.quote(contentName)
 	else:
 		if contentID:
-			url = "https://api.themoviedb.org/3/search/movie/" + contentID
+			url = "https://api.themoviedb.org/3/movie/" + contentID + '?language=en-US'
 		else:
 			url = "https://api.themoviedb.org/3/search/movie?query=" + urllib.parse.quote(contentName)
 	
@@ -192,28 +197,39 @@ def getData(filePath):
 	show_data = json.loads(response.text)
 	print(show_data)
 	print("\n\n")
-	if len(show_data["results"]) > 0:
-		show_data = show_data["results"][0]
+	if ('results' in show_data):
+		if (len(show_data["results"]) > 0):
+			show_data = show_data["results"][0]
+	
+	if show_data:
+		season = False
+		episode = False
 		if isTV:
 			show_id = show_data["id"]
+			if ogTags is not False:
+				if ('tvsn' in ogTags):
+					season = ogTags['tvsn'][0]
+				if ('tves' in ogTags):
+					episode = ogTags['tves'][0]
 
 		# GET DATA WITH ID NOW
 		if isTV == False:
 			url = "https://api.themoviedb.org/3/movie/" + str(show_data["id"]) + "?api_key=" + api_key
 		else:
-			print("FILEPATH:\n" + filePath + "\n\n")
-			filePathForSearch = re.compile('([^\/])+$').search(filePath).group(0)
-			season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePathForSearch).group(0)
-			episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePathForSearch).group(0)
-			season = int(re.compile('[\d]+').search(season).group(0))
-			episode = int(re.compile('[\d]+').search(episode).group(0))
-			if globalSzn and globalEp:
-				if globalSzn != season:
-					globalSzn = season
-				if globalEp != episode:
-					globalEp = episode
-				season = globalSzn
-				episode = globalEp
+			if season is False or episode is False:
+				print("FILEPATH:\n" + filePath + "\n\n")
+				filePathForSearch = re.compile('([^\/])+$').search(filePath).group(0)
+				season = re.compile('(S|Series |Season )[\d]{1,2}' ,re.I).search(filePathForSearch).group(0)
+				episode = re.compile('(E|Episode )[\d]{1,2}' ,re.I).search(filePathForSearch).group(0)
+				season = int(re.compile('[\d]+').search(season).group(0))
+				episode = int(re.compile('[\d]+').search(episode).group(0))
+				if globalSzn and globalEp:
+					if globalSzn != season:
+						globalSzn = season
+					if globalEp != episode:
+						globalEp = episode
+					season = globalSzn
+					episode = globalEp
 			print("Getting TV Data for Season: " + str(season))
 			print("episode: " + str(episode))
 			url = "https://api.themoviedb.org/3/tv/" + str(show_data["id"]) +'/season/' + str(season) + '/episode/' + str(episode) + "?api_key=" + api_key
@@ -301,9 +317,10 @@ def conversion(filePath):
 			"-crf", "22", "-profile:v", "main10", "-pix_fmt", "yuv420p10le",
 			"-maxrate", "40M", "-bufsize", "80M",
 			"-c:a:0", audio_codec, "-b:a:0", audio_bitrate, "-ar", "48000",
-			"-map", "0:v:0", "-map", "0:a:0",
-			"-movflags", "+faststart", outputFilePath
-		]
+			"-map", "0:v:0", "-map", "0:a:0"]
+		if hasSubtitlesFileAvailable:
+			process += ["-map", "1:s:0", "-metadata:s:s:0", "language=eng"]
+		process += ["-movflags", "+faststart", outputFilePath]
 
 		# process = []
 		# process.append("ffmpeg")
@@ -420,13 +437,13 @@ def applyData(filePath):
 	width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
 
 	if width > 1919 and width < 3839:
-		tagged_file['hdvd'] = [2]
+		tagged_file['hdvd'] = [2] #Full HD
 	elif width < 1919 and width > 1279:
-		tagged_file['hdvd'] = [1]
-	elif width > 3839:
-		tagged_file['hdvd'] = [3]
+		tagged_file['hdvd'] = [1] #Standard HD
+	# elif width > 3839:
+	# 	tagged_file['hdvd'] = [3] #4K does not work with ATV
 	else:
-		tagged_file['hdvd'] = [0]
+		tagged_file['hdvd'] = [0] # 'No' HD Tag
 
 	if isTV:
 		cast_crew_data = getCastandCrew(show_id, "tv")
@@ -528,7 +545,7 @@ def processFilePath(filePath):
 		exit()
 
 	# Get Text Based meta data
-	data = getData(filePath)
+	data = getData(filePath, ogTags)
 	if data:
 		applyData(filePath)
 	else:
