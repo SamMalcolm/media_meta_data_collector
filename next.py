@@ -511,8 +511,9 @@ def processFilePath(filePath):
 	filePath = conversion(filePath)
 	if ogTags and 'stik' in ogTags and ogTags['stik'] == [10]:
 		isTV = True
-		globalSzn = ogTags['tvsn'][0]
-		globalEp = ogTags['tves'][0]
+		if 'tvsn' in ogTags and 'tves' in ogTags:
+			globalSzn = ogTags['tvsn'][0]
+			globalEp = ogTags['tves'][0]
 
 	# Determine if TV Show, if not done already
 	if isTV == False:
