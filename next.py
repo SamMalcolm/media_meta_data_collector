@@ -139,29 +139,32 @@ def getTVArtwork(show_name, season_no, episode_no, tmdb_id):
 	if 'data' in data and 'canvas' in data['data'] and 'shelves' in data['data']['canvas'] and len(data['data']['canvas']['shelves']) > 0:
 		result = data
 		# print(result['data']['canvas']['shelves'])
-		if (re.compile(show_name, re.I).search(result['data']['canvas']['shelves'][0]['items'][0]['title'])):
-			show_id = result['data']['canvas']['shelves'][0]['items'][0]['id']
-			show_name = result['data']['canvas']['shelves'][0]['items'][0]['title']
-			url = f"https://uts-api.itunes.apple.com/uts/v2/show/{show_id}/itunesSeasons?sf=143441&locale=en-AU&caller=wta&utsk=def7345016abc82%3A%3A%3A%3A%3A%3Ad0e3fb52896c47a&v=34&pfm=desktop"
-			r = requests.get(url)
-			r.raise_for_status()
-			data = r.json()
-			print(data['data']['seasons'])
-			print(url)
-			try:
-				if str(season_no) in data['data']['seasons']:
-					season = data['data']['seasons'][str(season_no)][0]
-					artwork = season['images']['coverArt16X9']['url']
-				elif str(season_no - 1) in data['data']['seasons'] and len(data['data']['seasons'][str(season_no - 1)]) > 1:
-					season = data['data']['seasons'][str(season_no - 1)][1]
-					artwork = season['images']['coverArt16X9']['url']
-				else:
+		try:
+			if ('title' in result['data']['canvas']['shelves'][0]['items'][0] and re.compile(show_name, re.I).search(result['data']['canvas']['shelves'][0]['items'][0]['title'])):
+				show_id = result['data']['canvas']['shelves'][0]['items'][0]['id']
+				show_name = result['data']['canvas']['shelves'][0]['items'][0]['title']
+				url = f"https://uts-api.itunes.apple.com/uts/v2/show/{show_id}/itunesSeasons?sf=143441&locale=en-AU&caller=wta&utsk=def7345016abc82%3A%3A%3A%3A%3A%3Ad0e3fb52896c47a&v=34&pfm=desktop"
+				r = requests.get(url)
+				r.raise_for_status()
+				data = r.json()
+				print(data['data']['seasons'])
+				print(url)
+				try:
+					if str(season_no) in data['data']['seasons']:
+						season = data['data']['seasons'][str(season_no)][0]
+						artwork = season['images']['coverArt16X9']['url']
+					elif str(season_no - 1) in data['data']['seasons'] and len(data['data']['seasons'][str(season_no - 1)]) > 1:
+						season = data['data']['seasons'][str(season_no - 1)][1]
+						artwork = season['images']['coverArt16X9']['url']
+					else:
+						getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+				except:
 					getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
-			except:
-				getTMDBEpisodeStill(tmdb_id, season_no, episode_no)
+				
 			
-			
-		else:
+			else:
+				return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
+		except:
 			return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
 	else:
 		return getTMDBTVArtwork(tmdb_id, season_no, episode_no)
@@ -312,12 +315,14 @@ def conversion(filePath):
 			"ffmpeg", "-i", filePath]
 		if hasSubtitlesFileAvailable:
 			process += ["-i", subtitlesFound, "-c:s", "mov_text"]
+		else: 
+			process += ["-c:s", "mov_text"]
 		process += [
 			"-c:v", "libx265", "-tag:v", "hvc1", "-preset", "medium",
 			"-crf", "22", "-profile:v", "main10", "-pix_fmt", "yuv420p10le",
 			"-maxrate", "40M", "-bufsize", "80M",
-			"-c:a:0", audio_codec, "-b:a:0", audio_bitrate, "-ar", "48000",
-			"-map", "0:v:0", "-map", "0:a:0"]
+			"-c:a", audio_codec, "-b:a", audio_bitrate, "-ar", "48000",
+			"-map", "0:v:0", "-map", "0:a", "-map", "0:s?"]
 		if hasSubtitlesFileAvailable:
 			process += ["-map", "1:s:0", "-metadata:s:s:0", "language=eng"]
 		process += ["-movflags", "+faststart", outputFilePath]
@@ -376,8 +381,13 @@ def conversion(filePath):
 		# process.append(outputFilePath)
 		print("Calling: ")
 		print(" ".join(process))
-		subprocess.call(process)
-		if moveAndDelete:
+		failed_to_convert = False
+		try: 
+			subprocess.check_call(process)
+		except:
+			failed_to_convert = True
+			
+		if moveAndDelete and failed_to_convert is False:
 			subprocess.call(["unlink", filePath])
 		return outputFilePath
 	else:
@@ -521,7 +531,7 @@ def processFilePath(filePath):
 		if tvFilePattern.search(filePath):
 			isTV = True
 
-	fileName = re.compile("\/[ä\w\d\s.\[\]\-,'\(\)!+&%$#*^?|]+$").search(filePath).group(0)
+	fileName = re.compile("\/[ä\w\d\s.\[\]\-,'\(\)!+&%$#*^?|○△□]+$").search(filePath).group(0)
 	print(fileName)
 	info = PTN.parse(fileName)
 
@@ -608,7 +618,7 @@ year = False
 forceConversion = False
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thyf", ["input=", "id=", "name=", "isTV", "hard", "year", "force"])
+		opts, args = getopt.getopt(sys.argv[1:], "i:d:n:thyfm", ["input=", "id=", "name=", "isTV", "hard", "year", "force", "isMovie"])
 	except getopt.GetoptError:
 		print(getopt.GetoptError.with_traceback())
 		print ('test.py -i <inputfile> -n <content_name>')
@@ -624,6 +634,9 @@ if __name__ == "__main__":
 		elif opt in ("--isTV", "-tv"):
 			isTVPermenant = True
 			isTV = True
+		elif opt in ("--isMovie"):
+			isTVPermenant = False
+			isTV =False
 		elif opt in ("--hard", "-h"):
 			print("HARD MODE")
 			moveAndDelete = True

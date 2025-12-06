@@ -1,7 +1,7 @@
 import sys, getopt, json, re, os, subprocess
 
 def moveAndDeleteMethod(filePath):
-	subprocess.call(["cp", filePath, '/Volumes/Sam Malcolm/itunes_media_server/Automatically Add to TV.localized/'])
+	subprocess.call(["cp", filePath, '/Volumes/media/itunes_media_server/Automatically Add to TV.localized/'])
 	subprocess.call(["unlink", filePath])
 
 
