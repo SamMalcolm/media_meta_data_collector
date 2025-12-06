@@ -599,6 +599,9 @@ def main(filePath):
 	else:
 		print("Directory found, looping through items")
 		for item in os.listdir(filePath):
+			if item.startswith('._'):
+				print("Skipping hidden file")
+				continue
 			item = filePath + "/" + item
 			print(item)
 			main(item)
